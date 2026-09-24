@@ -48,6 +48,7 @@ import org.jellyfin.androidtv.ui.player.photo.PhotoPlayerViewModel
 import org.jellyfin.androidtv.ui.search.SearchFragmentDelegate
 import org.jellyfin.androidtv.ui.search.SearchRepository
 import org.jellyfin.androidtv.ui.search.SearchRepositoryImpl
+import org.jellyfin.androidtv.ui.cinema.CinemaDetailViewModel
 import org.jellyfin.androidtv.ui.cinema.CinemaHomeViewModel
 import org.jellyfin.androidtv.ui.search.SearchViewModel
 import org.jellyfin.androidtv.ui.settings.compat.SettingsViewModel
@@ -167,6 +168,7 @@ val appModule = module {
 	viewModel { PhotoPlayerViewModel(get(), get()) }
 	viewModel { SearchViewModel(get()) }
 	viewModel { CinemaHomeViewModel(get(), get(), get()) }
+	viewModel { CinemaDetailViewModel(get(), get(), get()) }
 	viewModel { DreamViewModel(get(), get(), get(), get(), get()) }
 	viewModel { SettingsViewModel() }
 	viewModel { SettingsLibrariesScreenViewModel(get()) }

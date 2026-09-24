@@ -22,26 +22,16 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.launch
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.ui.base.Icon
 import org.jellyfin.androidtv.ui.base.Text
@@ -78,34 +68,11 @@ fun CinemaHomeScreen(
 ) {
 	val listState = rememberLazyListState()
 	val heroFocusRequester = remember { FocusRequester() }
-	val continueWatchingFocusRequester = remember { FocusRequester() }
 	val tabs = listOf(
 		stringResource(R.string.cinema_tab_all),
 		stringResource(R.string.cinema_tab_collections),
 		stringResource(R.string.cinema_tab_genres),
 	)
-
-	// Gerichteter Sprung: DOWN aus den Tabs überspringt den (zufälligen) Spotlight und
-	// landet direkt auf Continue Watching (Web: CinemaHome.tsx:67).
-	//
-	// The target card lives in a different LazyColumn item that is usually not composed
-	// yet, so the row is scrolled into view first and the focus request is only made
-	// once composition had a chance to attach the requester.
-	val coroutineScope = rememberCoroutineScope()
-	val jumpToContinueWatching: (() -> Unit)? =
-		if (state.view == CinemaView.All && state.continueWatching.isNotEmpty()) {
-			{
-				val targetIndex = if (state.hero.isNotEmpty()) 2 else 1
-				coroutineScope.launch {
-					listState.animateScrollToItem(targetIndex)
-					withFrameNanos { }
-					runCatching { continueWatchingFocusRequester.requestFocus() }
-				}
-				Unit
-			}
-		} else {
-			null
-		}
 
 	val railSelection = when (state.mediaType) {
 		CinemaMediaType.Movies -> CinemaRailItem.Movies
@@ -126,7 +93,11 @@ fun CinemaHomeScreen(
 			) {
 				LazyColumn(
 					state = listState,
-					modifier = Modifier.fillMaxSize(),
+					// Restores focus to the last focused row instead of letting it fall
+					// back to the header (which would scroll the page to the top).
+					modifier = Modifier
+						.fillMaxSize()
+						.focusRestorer(),
 					contentPadding = PaddingValues(
 						start = 28.dp,
 						end = 28.dp,
@@ -146,7 +117,6 @@ fun CinemaHomeScreen(
 									CinemaMediaType.Shows -> R.string.lbl_tv_series
 								}
 							),
-							onJumpDown = jumpToContinueWatching,
 						)
 					}
 
@@ -158,7 +128,6 @@ fun CinemaHomeScreen(
 							posterUrl = posterUrl,
 							thumbUrl = thumbUrl,
 							heroFocusRequester = heroFocusRequester,
-							continueWatchingFocusRequester = continueWatchingFocusRequester,
 						)
 
 						CinemaView.Collections -> collectionsView(state, actions, posterUrl)
@@ -173,19 +142,20 @@ fun CinemaHomeScreen(
 		}
 	}
 
-	// Infinite scroll — trigger a page load as the end of the catalog comes into view.
-	if (state.view == CinemaView.All) {
-		val nearEnd by remember(listState) {
-			derivedStateOf {
-				val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-				last >= listState.layoutInfo.totalItemsCount - 2
-			}
+	// Infinite scroll — load the next page once the user actually approaches the end of
+	// the catalog. Guarded by `catalogHasMore` so it stays idle until there is a catalog
+	// and stops once everything is loaded.
+	val shouldLoadMore by remember {
+		derivedStateOf {
+			val info = listState.layoutInfo
+			val last = info.visibleItemsInfo.lastOrNull()?.index ?: return@derivedStateOf false
+			info.totalItemsCount > 0 && last >= info.totalItemsCount - LOAD_MORE_THRESHOLD
 		}
+	}
 
-		LaunchedEffect(listState) {
-			snapshotFlow { nearEnd }
-				.distinctUntilChanged()
-				.collect { if (it) onLoadNextPage() }
+	LaunchedEffect(shouldLoadMore, state.view, state.catalogHasMore) {
+		if (shouldLoadMore && state.view == CinemaView.All && state.catalogHasMore) {
+			onLoadNextPage()
 		}
 	}
 }
@@ -196,7 +166,6 @@ private fun CinemaHeader(
 	selectedIndex: Int,
 	onSelect: (Int) -> Unit,
 	title: String,
-	onJumpDown: (() -> Unit)?,
 ) {
 	Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
 		Box(Modifier.fillMaxWidth()) {
@@ -213,20 +182,7 @@ private fun CinemaHeader(
 				tabs = tabs,
 				selectedIndex = selectedIndex,
 				onSelect = onSelect,
-				modifier = Modifier
-					.align(Alignment.Center)
-					.onPreviewKeyEvent { event ->
-						val jump = onJumpDown
-						if (jump != null &&
-							event.type == KeyEventType.KeyDown &&
-							event.key == Key.DirectionDown
-						) {
-							jump()
-							true
-						} else {
-							false
-						}
-					},
+				modifier = Modifier.align(Alignment.Center),
 			)
 		}
 
@@ -247,7 +203,6 @@ private fun LazyListScope.allView(
 	posterUrl: (BaseItemDto) -> String?,
 	thumbUrl: (BaseItemDto) -> String?,
 	heroFocusRequester: FocusRequester,
-	continueWatchingFocusRequester: FocusRequester,
 ) {
 	if (state.hero.isNotEmpty()) {
 		item(key = "hero") {
@@ -279,7 +234,7 @@ private fun LazyListScope.allView(
 						contentPadding = PaddingValues(horizontal = 18.dp),
 						horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
 					) {
-						itemsIndexed(state.continueWatching) { index, item ->
+						items(state.continueWatching, key = { it.id }) { item ->
 							CinemaWideCard(
 								title = item.cinemaTitle,
 								subtitle = item.cinemaSubtitle,
@@ -287,11 +242,6 @@ private fun LazyListScope.allView(
 								progress = item.cinemaProgress,
 								onClick = { actions.onPlayItem(item) },
 								onLongClick = { actions.onItemMenu(item) },
-								modifier = if (index == 0) {
-									Modifier.focusRequester(continueWatchingFocusRequester)
-								} else {
-									Modifier
-								},
 							)
 						}
 					}
@@ -385,7 +335,7 @@ private fun LazyListScope.genresView(
 					.focusRestorer(),
 				horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
 			) {
-				items(row.items) { item ->
+				items(row.items, key = { it.id }) { item ->
 					CinemaPosterCard(
 						title = item.cinemaTitle,
 						subtitle = item.cinemaSubtitle,
@@ -417,6 +367,7 @@ private fun CinemaSkeletonRow() {
 	}
 }
 
+private const val LOAD_MORE_THRESHOLD = 3
 private const val CATALOG_COLUMNS = 6
 private const val SKELETON_CARDS = 6
 private val CATALOG_CARD_WIDTH = 185.dp

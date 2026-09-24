@@ -715,4 +715,10 @@
     <string name="cinema_previous">Previous</string>
     <string name="cinema_next">Next</string>
     <string name="cinema_resume">Resume</string>
+    <string name="cinema_back">Back</string>
+    <string name="cinema_similar">More like this</string>
+    <string name="cinema_director">Director</string>
+    <string name="cinema_writer">Writer</string>
+    <string name="cinema_studios">Studios</string>
+    <string name="cinema_audio">Audio</string>
 </resources>

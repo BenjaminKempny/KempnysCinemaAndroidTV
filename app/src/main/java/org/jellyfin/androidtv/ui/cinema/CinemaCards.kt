@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -64,7 +63,6 @@ fun CinemaPosterCard(
 			.width(width)
 			.cinemaFocusZoom(focused)
 			.onFocusChanged { focused = it.isFocused }
-			.focusable(true, interactionSource)
 			.cinemaClickable(interactionSource, onClick, onLongClick),
 		verticalArrangement = Arrangement.spacedBy(10.dp),
 	) {
@@ -131,7 +129,6 @@ fun CinemaWideCard(
 			.width(width)
 			.cinemaFocusZoom(focused)
 			.onFocusChanged { focused = it.isFocused }
-			.focusable(true, interactionSource)
 			.cinemaClickable(interactionSource, onClick, onLongClick),
 		verticalArrangement = Arrangement.spacedBy(8.dp),
 	) {

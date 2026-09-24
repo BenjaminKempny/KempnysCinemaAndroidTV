@@ -4,15 +4,16 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -137,7 +138,6 @@ fun CinemaButton(
 				shape = CinemaDimens.PillShape,
 			)
 			.onFocusChanged { focused = it.isFocused }
-			.focusable(enabled, interactionSource)
 			.clickable(
 				enabled = enabled,
 				interactionSource = interactionSource,
@@ -176,12 +176,17 @@ fun CinemaIconButton(
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 	size: Dp = CinemaDimens.ButtonHeight,
+	active: Boolean = false,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
 	var focused by remember { mutableStateOf(false) }
 
 	val background by animateColorAsState(
-		targetValue = if (focused) CinemaColors.ButtonFocused else CinemaColors.Button,
+		targetValue = when {
+			focused -> CinemaColors.ButtonFocused
+			active -> CinemaColors.Accent
+			else -> CinemaColors.Button
+		},
 		animationSpec = CinemaMotion.buttonFocus(),
 		label = "cinemaIconButtonBackground",
 	)
@@ -194,14 +199,13 @@ fun CinemaIconButton(
 			.background(background)
 			.border(1.dp, if (focused) Color.Transparent else CinemaColors.Border, CinemaDimens.PillShape)
 			.onFocusChanged { focused = it.isFocused }
-			.focusable(true, interactionSource)
 			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
 		contentAlignment = Alignment.Center,
 	) {
 		Icon(
 			painter = icon,
 			contentDescription = contentDescription,
-			tint = if (focused) CinemaColors.AccentText else CinemaColors.Text,
+			tint = if (focused || active) CinemaColors.AccentText else CinemaColors.Text,
 			modifier = Modifier.size(size * 0.44f),
 		)
 	}
@@ -226,13 +230,9 @@ fun CinemaTabRow(
 	val tabWidths = remember(tabs.size) { mutableStateListOfZeros(tabs.size) }
 	var focusedIndex by remember { mutableStateOf<Int?>(null) }
 
-	val pillIndex = focusedIndex ?: selectedIndex
-	val pillOffset = with(density) {
-		tabWidths.take(pillIndex.coerceIn(0, tabs.size)).sum().toDp()
-	}
-	val pillWidth = with(density) {
-		tabWidths.getOrElse(pillIndex) { 0 }.toDp()
-	}
+	val pillIndex = (focusedIndex ?: selectedIndex).coerceIn(0, (tabs.size - 1).coerceAtLeast(0))
+	val pillOffset = with(density) { tabWidths.take(pillIndex).sum().toDp() }
+	val pillWidth = with(density) { tabWidths.getOrElse(pillIndex) { 0 }.toDp() }
 
 	val reducedMotion = rememberReducedMotion()
 	val animatedOffset by animateDpAsState(
@@ -245,23 +245,32 @@ fun CinemaTabRow(
 		animationSpec = if (reducedMotion) tween(0) else CinemaMotion.navPill(),
 		label = "cinemaPillWidth",
 	)
+	val pillColor by animateColorAsState(
+		targetValue = if (focusedIndex != null) CinemaColors.Accent else CinemaColors.NavActive,
+		animationSpec = CinemaMotion.buttonFocus(),
+		label = "cinemaPillColor",
+	)
 
 	Box(
 		modifier = modifier
 			.clip(CinemaDimens.PillShape)
 			.background(CinemaColors.Rail)
 			.border(1.dp, CinemaColors.Border, CinemaDimens.PillShape)
-			.padding(5.dp),
+			.padding(5.dp)
+			// Tracking focus on the group avoids the flicker that per-tab enter/exit
+			// callbacks would cause while moving between two tabs.
+			.onFocusChanged { if (!it.hasFocus) focusedIndex = null }
+			.focusGroup(),
 	) {
 		// The sliding pill lives behind the labels.
 		if (animatedWidth > 0.dp) {
 			Box(
 				modifier = Modifier
-					.padding(start = animatedOffset)
+					.offset(x = animatedOffset)
 					.width(animatedWidth)
 					.height(CinemaDimens.TabHeight)
 					.clip(CinemaDimens.PillShape)
-					.background(if (focusedIndex != null) CinemaColors.Accent else CinemaColors.NavActive),
+					.background(pillColor),
 			)
 		}
 
@@ -270,8 +279,8 @@ fun CinemaTabRow(
 				CinemaTab(
 					title = title,
 					active = pillIndex == index,
+					focusedByRow = focusedIndex != null,
 					onFocused = { focusedIndex = index },
-					onUnfocused = { if (focusedIndex == index) focusedIndex = null },
 					onClick = { onSelect(index) },
 					modifier = Modifier.onSizeChanged { tabWidths[index] = it.width },
 				)
@@ -284,31 +293,35 @@ fun CinemaTabRow(
 private fun CinemaTab(
 	title: String,
 	active: Boolean,
+	focusedByRow: Boolean,
 	onFocused: () -> Unit,
-	onUnfocused: () -> Unit,
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
-	var focused by remember { mutableStateOf(false) }
+
+	val contentColor by animateColorAsState(
+		targetValue = when {
+			active && focusedByRow -> CinemaColors.AccentText
+			active -> CinemaColors.NavActiveText
+			else -> CinemaColors.Muted
+		},
+		animationSpec = CinemaMotion.buttonFocus(),
+		label = "cinemaTabTint",
+	)
 
 	Box(
 		modifier = modifier
 			.height(CinemaDimens.TabHeight)
-			.defaultMinSize(minWidth = 120.dp)
-			.cinemaFocusZoom(focused)
-			.onFocusChanged {
-				focused = it.isFocused
-				if (it.isFocused) onFocused() else onUnfocused()
-			}
-			.focusable(true, interactionSource)
+			.defaultMinSize(minWidth = 140.dp)
+			.onFocusChanged { if (it.isFocused) onFocused() }
 			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
 			.padding(horizontal = 26.dp),
 		contentAlignment = Alignment.Center,
 	) {
 		Text(
 			text = title,
-			color = if (focused) CinemaColors.AccentText else if (active) CinemaColors.NavActiveText else CinemaColors.Muted,
+			color = contentColor,
 			fontSize = CinemaDimens.TabTextSize,
 			fontWeight = FontWeight.SemiBold,
 			maxLines = 1,
