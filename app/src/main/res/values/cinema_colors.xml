@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	Cinema design tokens ported from the KempnysCinemaWeb dark token set
+	(src/apps/modern/features/home/_cinemaTokens.scss, mixin cinema-dark-tokens).
+	Only the dark appearance is ported.
+-->
+<resources>
+	<color name="cinema_page_base">#FF080C12</color>
+	<color name="cinema_page_grad_top">#FF243142</color>
+	<color name="cinema_page_grad_mid">#FF111821</color>
+	<color name="cinema_shell_top">#EB28313E</color>
+	<color name="cinema_shell_bottom">#F50E131B</color>
+	<color name="cinema_border">#24E5F0FF</color>
+	<color name="cinema_border_strong">#38E5F0FF</color>
+	<color name="cinema_text">#FFF6F8FC</color>
+	<color name="cinema_text_soft">#FFD2DDEA</color>
+	<color name="cinema_muted">#FFB6C0CD</color>
+	<color name="cinema_accent">#FFE1EDFA</color>
+	<color name="cinema_accent_text">#FF142232</color>
+	<color name="cinema_rail">#FF1A222E</color>
+	<color name="cinema_rail_blur">#B31C2531</color>
+	<color name="cinema_nav_active">#29D8EAFF</color>
+	<color name="cinema_nav_active_text">#FFF0F7FF</color>
+	<color name="cinema_button">#E0323D4C</color>
+	<color name="cinema_hero_bg">#FF172330</color>
+	<color name="cinema_card_placeholder">#FF24303E</color>
+	<color name="cinema_input">#FF202A38</color>
+	<color name="cinema_surface">#FF1B2532</color>
+	<color name="cinema_focus">#FFD4E8FF</color>
+	<color name="cinema_focus_ring">#40A9CFFF</color>
+	<color name="cinema_focus_separator">#CC0A1423</color>
+	<color name="cinema_focus_glow">#80A9CFFF</color>
+</resources>

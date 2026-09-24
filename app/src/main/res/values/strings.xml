@@ -696,4 +696,23 @@
     <string name="truehd">TrueHD</string>
     <string name="eac3_atmos">DD+ Atmos</string>
     <string name="truehd_atmos">TrueHD Atmos</string>
+
+    <!-- Cinema UI -->
+    <string name="cinema_tab_all">All</string>
+    <string name="cinema_tab_collections">Collections</string>
+    <string name="cinema_tab_genres">Genres</string>
+    <string name="cinema_profile">Profile</string>
+    <string name="cinema_spotlight">Discover something new</string>
+    <string name="cinema_details">Details</string>
+    <string name="cinema_all_movies">All movies</string>
+    <string name="cinema_all_shows">All series</string>
+    <string name="cinema_show_all">All</string>
+    <string name="cinema_sort_name">Name</string>
+    <string name="cinema_sort_added">Recently added</string>
+    <string name="cinema_sort_year">Year</string>
+    <string name="cinema_collections_subtitle">Your collections, curated by you.</string>
+    <string name="cinema_empty">Nothing here yet.</string>
+    <string name="cinema_previous">Previous</string>
+    <string name="cinema_next">Next</string>
+    <string name="cinema_resume">Resume</string>
 </resources>

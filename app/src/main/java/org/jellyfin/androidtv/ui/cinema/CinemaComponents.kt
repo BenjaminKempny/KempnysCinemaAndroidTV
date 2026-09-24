@@ -1,0 +1,354 @@
+package org.jellyfin.androidtv.ui.cinema
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import org.jellyfin.androidtv.ui.base.Icon
+import org.jellyfin.androidtv.ui.base.Text
+
+/**
+ * `.cinemaShell` — the rounded panel that all cinema content lives in.
+ * Radius 30 dp, gradient background, hairline border. The web applies a 24 px backdrop
+ * blur here; per spec A6 the TV port always uses the static fallback colour because a
+ * real backdrop blur is far too expensive on TV GPUs.
+ */
+@Composable
+fun CinemaShell(
+	modifier: Modifier = Modifier,
+	content: @Composable () -> Unit,
+) {
+	Box(
+		modifier = modifier
+			.clip(CinemaDimens.ShellShape)
+			.background(CinemaColors.ShellBackground)
+			.border(1.dp, CinemaColors.Border, CinemaDimens.ShellShape),
+	) {
+		content()
+	}
+}
+
+/** A flat surface panel, used for the rails/sections inside the shell. */
+@Composable
+fun CinemaPanel(
+	modifier: Modifier = Modifier,
+	content: @Composable () -> Unit,
+) {
+	Box(
+		modifier = modifier
+			.clip(CinemaDimens.PanelShape)
+			.background(CinemaColors.Surface.copy(alpha = 0.55f))
+			.border(1.dp, CinemaColors.Border, CinemaDimens.PanelShape),
+	) {
+		content()
+	}
+}
+
+/** `.cinemaTag` — meta chip used by the hero and the detail screen. */
+@Composable
+fun CinemaTag(
+	text: String,
+	modifier: Modifier = Modifier,
+) {
+	Box(
+		modifier = modifier
+			.clip(CinemaDimens.PillShape)
+			.background(CinemaColors.Tag)
+			.border(1.dp, CinemaColors.TagBorder, CinemaDimens.PillShape)
+			.padding(horizontal = 14.dp, vertical = 5.dp),
+	) {
+		Text(
+			text = text,
+			color = CinemaColors.TextSoft,
+			fontSize = CinemaDimens.TagTextSize,
+			fontWeight = FontWeight.Medium,
+			maxLines = 1,
+		)
+	}
+}
+
+/**
+ * A5 — pill button. Background animates from `cinema_button` to the accent colour on
+ * focus over 160 ms, combined with the global focus ring (§1.4).
+ */
+@Composable
+fun CinemaButton(
+	text: String,
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+	icon: Painter? = null,
+	primary: Boolean = false,
+	enabled: Boolean = true,
+) {
+	val interactionSource = remember { MutableInteractionSource() }
+	var focused by remember { mutableStateOf(false) }
+
+	val background by animateColorAsState(
+		targetValue = when {
+			focused -> CinemaColors.ButtonFocused
+			primary -> CinemaColors.Accent
+			else -> CinemaColors.Button
+		},
+		animationSpec = CinemaMotion.buttonFocus(),
+		label = "cinemaButtonBackground",
+	)
+	val contentColor = if (focused || primary) CinemaColors.AccentText else CinemaColors.Text
+
+	Row(
+		modifier = modifier
+			.height(CinemaDimens.ButtonHeight)
+			.cinemaFocusRing(focused, cornerRadius = CinemaDimens.ButtonHeight / 2)
+			.clip(CinemaDimens.PillShape)
+			.background(background)
+			.border(
+				width = 1.dp,
+				color = if (focused) Color.Transparent else CinemaColors.Border,
+				shape = CinemaDimens.PillShape,
+			)
+			.onFocusChanged { focused = it.isFocused }
+			.focusable(enabled, interactionSource)
+			.clickable(
+				enabled = enabled,
+				interactionSource = interactionSource,
+				indication = null,
+				onClick = onClick,
+			)
+			.padding(horizontal = 22.dp),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(9.dp),
+	) {
+		if (icon != null) {
+			Icon(
+				painter = icon,
+				contentDescription = null,
+				tint = contentColor,
+				modifier = Modifier.size(21.dp),
+			)
+		}
+
+		Text(
+			text = text,
+			color = contentColor,
+			fontSize = CinemaDimens.ButtonTextSize,
+			fontWeight = FontWeight.SemiBold,
+			maxLines = 1,
+			overflow = TextOverflow.Ellipsis,
+		)
+	}
+}
+
+/** Circular icon-only button (back / home / hero arrows). */
+@Composable
+fun CinemaIconButton(
+	icon: Painter,
+	contentDescription: String?,
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+	size: Dp = CinemaDimens.ButtonHeight,
+) {
+	val interactionSource = remember { MutableInteractionSource() }
+	var focused by remember { mutableStateOf(false) }
+
+	val background by animateColorAsState(
+		targetValue = if (focused) CinemaColors.ButtonFocused else CinemaColors.Button,
+		animationSpec = CinemaMotion.buttonFocus(),
+		label = "cinemaIconButtonBackground",
+	)
+
+	Box(
+		modifier = modifier
+			.size(size)
+			.cinemaFocusRing(focused, cornerRadius = size / 2)
+			.clip(CinemaDimens.PillShape)
+			.background(background)
+			.border(1.dp, if (focused) Color.Transparent else CinemaColors.Border, CinemaDimens.PillShape)
+			.onFocusChanged { focused = it.isFocused }
+			.focusable(true, interactionSource)
+			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+		contentAlignment = Alignment.Center,
+	) {
+		Icon(
+			painter = icon,
+			contentDescription = contentDescription,
+			tint = if (focused) CinemaColors.AccentText else CinemaColors.Text,
+			modifier = Modifier.size(size * 0.44f),
+		)
+	}
+}
+
+/**
+ * A1 — the segmented control (`Alle | Sammlungen | Genres`) with a pill that *slides*
+ * to the new position instead of being redrawn. Offset and width animate over 360 ms
+ * with an easeOutQuint curve.
+ *
+ * Per spec the trigger changes from click to focus on TV: the pill follows the D-Pad
+ * focus, falling back to the selected tab when the row is unfocused.
+ */
+@Composable
+fun CinemaTabRow(
+	tabs: List<String>,
+	selectedIndex: Int,
+	onSelect: (Int) -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	val density = LocalDensity.current
+	val tabWidths = remember(tabs.size) { mutableStateListOfZeros(tabs.size) }
+	var focusedIndex by remember { mutableStateOf<Int?>(null) }
+
+	val pillIndex = focusedIndex ?: selectedIndex
+	val pillOffset = with(density) {
+		tabWidths.take(pillIndex.coerceIn(0, tabs.size)).sum().toDp()
+	}
+	val pillWidth = with(density) {
+		tabWidths.getOrElse(pillIndex) { 0 }.toDp()
+	}
+
+	val reducedMotion = rememberReducedMotion()
+	val animatedOffset by animateDpAsState(
+		targetValue = pillOffset,
+		animationSpec = if (reducedMotion) tween(0) else CinemaMotion.navPill(),
+		label = "cinemaPillOffset",
+	)
+	val animatedWidth by animateDpAsState(
+		targetValue = pillWidth,
+		animationSpec = if (reducedMotion) tween(0) else CinemaMotion.navPill(),
+		label = "cinemaPillWidth",
+	)
+
+	Box(
+		modifier = modifier
+			.clip(CinemaDimens.PillShape)
+			.background(CinemaColors.Rail)
+			.border(1.dp, CinemaColors.Border, CinemaDimens.PillShape)
+			.padding(5.dp),
+	) {
+		// The sliding pill lives behind the labels.
+		if (animatedWidth > 0.dp) {
+			Box(
+				modifier = Modifier
+					.padding(start = animatedOffset)
+					.width(animatedWidth)
+					.height(CinemaDimens.TabHeight)
+					.clip(CinemaDimens.PillShape)
+					.background(if (focusedIndex != null) CinemaColors.Accent else CinemaColors.NavActive),
+			)
+		}
+
+		Row {
+			tabs.forEachIndexed { index, title ->
+				CinemaTab(
+					title = title,
+					active = pillIndex == index,
+					onFocused = { focusedIndex = index },
+					onUnfocused = { if (focusedIndex == index) focusedIndex = null },
+					onClick = { onSelect(index) },
+					modifier = Modifier.onSizeChanged { tabWidths[index] = it.width },
+				)
+			}
+		}
+	}
+}
+
+@Composable
+private fun CinemaTab(
+	title: String,
+	active: Boolean,
+	onFocused: () -> Unit,
+	onUnfocused: () -> Unit,
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	val interactionSource = remember { MutableInteractionSource() }
+	var focused by remember { mutableStateOf(false) }
+
+	Box(
+		modifier = modifier
+			.height(CinemaDimens.TabHeight)
+			.defaultMinSize(minWidth = 120.dp)
+			.cinemaFocusZoom(focused)
+			.onFocusChanged {
+				focused = it.isFocused
+				if (it.isFocused) onFocused() else onUnfocused()
+			}
+			.focusable(true, interactionSource)
+			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+			.padding(horizontal = 26.dp),
+		contentAlignment = Alignment.Center,
+	) {
+		Text(
+			text = title,
+			color = if (focused) CinemaColors.AccentText else if (active) CinemaColors.NavActiveText else CinemaColors.Muted,
+			fontSize = CinemaDimens.TabTextSize,
+			fontWeight = FontWeight.SemiBold,
+			maxLines = 1,
+		)
+	}
+}
+
+/** Section heading used above rails and grids. */
+@Composable
+fun CinemaSectionTitle(
+	text: String,
+	modifier: Modifier = Modifier,
+) = Text(
+	text = text,
+	modifier = modifier,
+	color = CinemaColors.Text,
+	fontSize = CinemaDimens.SectionTitleSize,
+	fontWeight = FontWeight.Bold,
+	maxLines = 1,
+	overflow = TextOverflow.Ellipsis,
+)
+
+/** Full-bleed cinema page background (`--cinema-page-bg`). */
+@Composable
+fun CinemaBackground(
+	modifier: Modifier = Modifier,
+	content: @Composable () -> Unit,
+) = Box(
+	modifier = modifier
+		.fillMaxSize()
+		.background(CinemaColors.PageBase)
+		.background(CinemaColors.PageBackground),
+) {
+	content()
+}
+
+internal val CinemaContentPadding = PaddingValues(
+	horizontal = CinemaDimens.Overscan,
+	vertical = 24.dp,
+)
+
+private fun mutableStateListOfZeros(size: Int) =
+	androidx.compose.runtime.mutableStateListOf<Int>().apply { repeat(size) { add(0) } }
