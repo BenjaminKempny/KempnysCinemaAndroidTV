@@ -715,6 +715,8 @@
     <string name="cinema_previous">Previous</string>
     <string name="cinema_next">Next</string>
     <string name="cinema_resume">Resume</string>
+    <string name="cinema_titles">Titles</string>
+    <string name="cinema_search_hint">Type to search your library</string>
     <string name="cinema_back">Back</string>
     <string name="cinema_similar">More like this</string>
     <string name="cinema_director">Director</string>

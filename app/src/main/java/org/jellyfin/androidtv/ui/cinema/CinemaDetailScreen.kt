@@ -15,17 +15,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -49,15 +51,14 @@ data class CinemaDetailActions(
 	val onToggleFavorite: () -> Unit,
 	val onTogglePlayed: () -> Unit,
 	val onOpenItem: (BaseItemDto) -> Unit,
+	val onSelectSort: (CinemaSort) -> Unit,
 )
 
 /**
- * The cinema detail capsule (spec §2.5).
+ * The cinema detail capsule (spec §2.5) and — for box sets — the collection browser.
  *
- * The web builds this by rewriting the legacy DOM at runtime; that is a pure web
- * workaround, so the target structure is built directly here: a rounded capsule holding
- * the poster on the left and title, meta and actions on the right over a scrimmed
- * backdrop, followed by the info ribbon, the description and related rows.
+ * A collection is a browsing surface, not a media page, so it drops the meta row, the
+ * action buttons and the recommendations and lists its members as a plain grid instead.
  */
 @Composable
 fun CinemaDetailScreen(
@@ -69,20 +70,22 @@ fun CinemaDetailScreen(
 	val item = state.item
 	val playFocusRequester = remember { FocusRequester() }
 
-	LaunchedEffect(item?.id) {
-		if (item != null) runCatching { playFocusRequester.requestFocus() }
+	LaunchedEffect(item?.id, state.isCollection) {
+		if (item != null && !state.isCollection) runCatching { playFocusRequester.requestFocus() }
 	}
 
 	CinemaBackground(modifier) {
 		LazyColumn(
-			modifier = Modifier.fillMaxSize(),
+			modifier = Modifier
+				.fillMaxSize()
+				.focusRestorer(),
 			contentPadding = PaddingValues(
 				start = CinemaDimens.Overscan,
 				end = CinemaDimens.Overscan,
-				top = 28.dp,
+				top = 24.dp,
 				bottom = CinemaDimens.Overscan,
 			),
-			verticalArrangement = Arrangement.spacedBy(22.dp),
+			verticalArrangement = Arrangement.spacedBy(20.dp),
 		) {
 			item(key = "nav") {
 				Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -90,81 +93,171 @@ fun CinemaDetailScreen(
 						icon = painterResource(R.drawable.ic_arrow_back),
 						contentDescription = stringResource(R.string.cinema_back),
 						onClick = actions.onBack,
-						size = 44.dp,
+						size = NAV_BUTTON_SIZE,
 					)
 					CinemaIconButton(
 						icon = painterResource(R.drawable.ic_house),
 						contentDescription = stringResource(R.string.lbl_home),
 						onClick = actions.onHome,
-						size = 44.dp,
+						size = NAV_BUTTON_SIZE,
 					)
 				}
 			}
 
 			if (item != null) {
-				item(key = "hero") {
-					CinemaDetailHero(
-						item = item,
-						state = state,
-						actions = actions,
-						playFocusRequester = playFocusRequester,
+				if (state.isCollection) collectionContent(state, actions, item, posterUrl)
+				else detailContent(state, actions, item, posterUrl, playFocusRequester)
+			}
+		}
+	}
+}
+
+// region collection
+
+private fun LazyListScope.collectionContent(
+	state: CinemaDetailState,
+	actions: CinemaDetailActions,
+	collection: BaseItemDto,
+	posterUrl: (BaseItemDto) -> String?,
+) {
+	item(key = "collection-header") {
+		Row(
+			horizontalArrangement = Arrangement.spacedBy(22.dp),
+			verticalAlignment = Alignment.CenterVertically,
+		) {
+			Box(
+				modifier = Modifier
+					.width(COLLECTION_POSTER_WIDTH)
+					.aspectRatio(CinemaDimens.PosterAspect)
+					.clip(CinemaDimens.CardShape)
+					.background(CinemaColors.CardPlaceholder),
+			) {
+				if (state.posterUrl != null) {
+					AsyncImage(
+						model = state.posterUrl,
+						contentDescription = null,
+						contentScale = ContentScale.Crop,
+						modifier = Modifier.fillMaxSize(),
 					)
 				}
+			}
 
-				item(key = "ribbon") { CinemaDetailRibbon(item) }
+			Text(
+				text = collection.name.orEmpty(),
+				color = CinemaColors.Text,
+				fontSize = CinemaDimens.PageTitleSize,
+				fontWeight = FontWeight.Bold,
+				maxLines = 2,
+			)
+		}
+	}
 
-				if (!item.overview.isNullOrBlank()) {
-					item(key = "overview") {
-						CinemaPanel(Modifier.fillMaxWidth()) {
-							Column(
-								modifier = Modifier.padding(22.dp),
-								verticalArrangement = Arrangement.spacedBy(12.dp),
-							) {
-								item.taglines?.firstOrNull()?.let { tagline ->
-									Text(
-										text = tagline,
-										color = CinemaColors.Text,
-										fontSize = CinemaDimens.SectionTitleSize,
-										fontWeight = FontWeight.SemiBold,
-									)
-								}
+	if (state.children.isEmpty()) {
+		if (!state.loading) {
+			item(key = "collection-empty") {
+				Text(
+					text = stringResource(R.string.cinema_empty),
+					color = CinemaColors.Muted,
+					fontSize = CinemaDimens.BodySize,
+				)
+			}
+		}
+		return
+	}
 
-								Text(
-									text = item.overview.orEmpty(),
-									color = CinemaColors.TextSoft,
-									fontSize = CinemaDimens.BodySize,
-									lineHeight = 28.sp,
-								)
-							}
-						}
-					}
-				}
+	item(key = "collection-title") {
+		Row(
+			modifier = Modifier.fillMaxWidth(),
+			verticalAlignment = Alignment.CenterVertically,
+		) {
+			CinemaSectionTitle(
+				text = stringResource(R.string.cinema_titles),
+				modifier = Modifier.weight(1f),
+			)
 
-				if (state.children.isNotEmpty()) {
-					item(key = "children") {
-						CinemaDetailRow(
-							title = stringResource(
-								if (item.type == BaseItemKind.SERIES) R.string.lbl_seasons
-								else R.string.lbl_episodes
-							),
-							items = state.children,
-							posterUrl = posterUrl,
-							onOpenItem = actions.onOpenItem,
+			CinemaSortSelector(sort = state.sort, onSelect = actions.onSelectSort)
+		}
+	}
+
+	cinemaGrid(
+		items = state.children,
+		posterUrl = posterUrl,
+		onOpenItem = actions.onOpenItem,
+		keyPrefix = "collection",
+	)
+}
+
+// endregion
+
+// region media detail
+
+private fun LazyListScope.detailContent(
+	state: CinemaDetailState,
+	actions: CinemaDetailActions,
+	detailItem: BaseItemDto,
+	posterUrl: (BaseItemDto) -> String?,
+	playFocusRequester: FocusRequester,
+) {
+	item(key = "hero") {
+		CinemaDetailHero(
+			item = detailItem,
+			state = state,
+			actions = actions,
+			playFocusRequester = playFocusRequester,
+		)
+	}
+
+	item(key = "ribbon") { CinemaDetailRibbon(detailItem) }
+
+	if (!detailItem.overview.isNullOrBlank()) {
+		item(key = "overview") {
+			CinemaPanel(Modifier.fillMaxWidth()) {
+				Column(
+					modifier = Modifier.padding(horizontal = 20.dp, vertical = 18.dp),
+					verticalArrangement = Arrangement.spacedBy(10.dp),
+				) {
+					detailItem.taglines?.firstOrNull()?.let { tagline ->
+						Text(
+							text = tagline,
+							color = CinemaColors.Text,
+							fontSize = CinemaDimens.SectionTitleSize,
+							fontWeight = FontWeight.SemiBold,
 						)
 					}
-				}
 
-				if (state.similar.isNotEmpty()) {
-					item(key = "similar") {
-						CinemaDetailRow(
-							title = stringResource(R.string.cinema_similar),
-							items = state.similar,
-							posterUrl = posterUrl,
-							onOpenItem = actions.onOpenItem,
-						)
-					}
+					Text(
+						text = detailItem.overview.orEmpty(),
+						color = CinemaColors.TextSoft,
+						fontSize = CinemaDimens.BodySize,
+						lineHeight = OVERVIEW_LINE_HEIGHT,
+					)
 				}
 			}
+		}
+	}
+
+	if (state.children.isNotEmpty()) {
+		item(key = "children") {
+			CinemaDetailRow(
+				title = stringResource(
+					if (detailItem.type == BaseItemKind.SERIES) R.string.lbl_seasons
+					else R.string.lbl_episodes
+				),
+				items = state.children,
+				posterUrl = posterUrl,
+				onOpenItem = actions.onOpenItem,
+			)
+		}
+	}
+
+	if (state.similar.isNotEmpty()) {
+		item(key = "similar") {
+			CinemaDetailRow(
+				title = stringResource(R.string.cinema_similar),
+				items = state.similar,
+				posterUrl = posterUrl,
+				onOpenItem = actions.onOpenItem,
+			)
 		}
 	}
 }
@@ -198,8 +291,8 @@ private fun CinemaDetailHero(
 		Row(
 			modifier = Modifier
 				.fillMaxSize()
-				.padding(20.dp),
-			horizontalArrangement = Arrangement.spacedBy(28.dp),
+				.padding(18.dp),
+			horizontalArrangement = Arrangement.spacedBy(26.dp),
 		) {
 			Box(
 				modifier = Modifier
@@ -219,13 +312,13 @@ private fun CinemaDetailHero(
 			}
 
 			Column(
-				modifier = Modifier.padding(top = 42.dp),
-				verticalArrangement = Arrangement.spacedBy(18.dp),
+				modifier = Modifier.fillMaxHeight(),
+				verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
 			) {
 				Text(
 					text = item.name.orEmpty(),
 					color = CinemaColors.Text,
-					fontSize = 46.sp,
+					fontSize = DETAIL_TITLE_SIZE,
 					fontWeight = FontWeight.Bold,
 					maxLines = 2,
 				)
@@ -285,14 +378,14 @@ private fun CinemaDetailMeta(item: BaseItemDto) {
 			Text(
 				text = part,
 				color = CinemaColors.TextSoft,
-				fontSize = CinemaDimens.CardSubtitleSize,
+				fontSize = CinemaDimens.MetaSize,
 				maxLines = 1,
 			)
 		}
 	}
 }
 
-/** The info ribbon below the capsule: director, writer, studios, genres. */
+/** The info ribbon below the capsule: director, writer, studios, genres, audio. */
 @Composable
 private fun CinemaDetailRibbon(item: BaseItemDto) {
 	val director = item.people
@@ -325,21 +418,21 @@ private fun CinemaDetailRibbon(item: BaseItemDto) {
 
 	CinemaPanel(Modifier.fillMaxWidth()) {
 		Column(
-			modifier = Modifier.padding(22.dp),
-			verticalArrangement = Arrangement.spacedBy(10.dp),
+			modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+			verticalArrangement = Arrangement.spacedBy(8.dp),
 		) {
 			rows.forEach { (labelRes, values) ->
 				Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
 					Text(
 						text = stringResource(labelRes),
 						color = CinemaColors.Muted,
-						fontSize = CinemaDimens.CardSubtitleSize,
+						fontSize = CinemaDimens.MetaSize,
 						modifier = Modifier.width(RIBBON_LABEL_WIDTH),
 					)
 					Text(
 						text = values.joinToString(", "),
 						color = CinemaColors.Text,
-						fontSize = CinemaDimens.CardSubtitleSize,
+						fontSize = CinemaDimens.MetaSize,
 						fontWeight = FontWeight.SemiBold,
 					)
 				}
@@ -355,11 +448,13 @@ private fun CinemaDetailRow(
 	posterUrl: (BaseItemDto) -> String?,
 	onOpenItem: (BaseItemDto) -> Unit,
 ) {
-	Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+	Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
 		CinemaSectionTitle(title)
 
 		LazyRow(
-			modifier = Modifier.fillMaxWidth(),
+			modifier = Modifier
+				.fillMaxWidth()
+				.focusRestorer(),
 			horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
 		) {
 			items(items, key = { it.id }) { child ->
@@ -369,12 +464,14 @@ private fun CinemaDetailRow(
 					imageUrl = posterUrl(child),
 					progress = child.cinemaProgress,
 					onClick = { onOpenItem(child) },
-					width = DETAIL_CARD_WIDTH,
+					width = CinemaDimens.RowCardWidth,
 				)
 			}
 		}
 	}
 }
+
+// endregion
 
 private fun formatRuntime(ticks: Long): String {
 	val totalMinutes = ticks / TICKS_PER_MINUTE
@@ -395,6 +492,9 @@ private fun endTime(runTimeTicks: Long?, positionTicks: Long?): String? {
 private const val TICKS_PER_MINUTE = 600_000_000L
 private const val MINUTES_PER_HOUR = 60L
 private const val MAX_PEOPLE = 3
-private val DETAIL_HERO_HEIGHT = 330.dp
-private val DETAIL_CARD_WIDTH = 170.dp
-private val RIBBON_LABEL_WIDTH = 120.dp
+private val DETAIL_HERO_HEIGHT = 300.dp
+private val DETAIL_TITLE_SIZE = 38.sp
+private val OVERVIEW_LINE_HEIGHT = 26.sp
+private val NAV_BUTTON_SIZE = 44.dp
+private val COLLECTION_POSTER_WIDTH = 96.dp
+private val RIBBON_LABEL_WIDTH = 96.dp

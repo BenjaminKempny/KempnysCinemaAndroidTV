@@ -4,6 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -136,11 +140,16 @@ class CinemaHomeViewModel(
 			try {
 				val libraryId = resolveLibraryId(snapshot.mediaType)
 
+				// A newer load may have cancelled this job while requests were in flight;
+				// without this the stale result would overwrite the fresh state.
+				ensureActive()
+
 				when (snapshot.view) {
 					CinemaView.All -> {
 						val hero = loadHero(libraryId, snapshot.mediaType)
 						val resume = loadContinueWatching(libraryId)
 						val page = loadCatalogPage(libraryId, snapshot, startIndex = 0)
+						ensureActive()
 
 						_state.update {
 							it.copy(
@@ -157,7 +166,8 @@ class CinemaHomeViewModel(
 					}
 
 					CinemaView.Collections -> {
-						val collections = loadCollections()
+						val collections = loadCollections(snapshot.mediaType)
+						ensureActive()
 						_state.update {
 							it.copy(
 								loading = false,
@@ -173,6 +183,7 @@ class CinemaHomeViewModel(
 
 					CinemaView.Genres -> {
 						val rows = loadGenreRows(libraryId, snapshot.mediaType)
+						ensureActive()
 						_state.update {
 							it.copy(
 								loading = false,
@@ -230,11 +241,14 @@ class CinemaHomeViewModel(
 		}
 	}
 
-	private suspend fun resolveLibraryId(mediaType: CinemaMediaType): UUID? = runCatching {
+	private suspend fun resolveLibraryId(mediaType: CinemaMediaType): UUID? = try {
 		userViewsRepository.views.first()
 			.firstOrNull { it.collectionType == mediaType.collectionType }
 			?.id
-	}.getOrNull()
+	} catch (error: ApiClientException) {
+		Timber.w(error, "Failed to resolve library id")
+		null
+	}
 
 	private suspend fun loadHero(libraryId: UUID?, mediaType: CinemaMediaType): List<CinemaHeroItem> {
 		val result by api.itemsApi.getItems(
@@ -286,7 +300,13 @@ class CinemaHomeViewModel(
 		return Page(result.items, result.totalRecordCount)
 	}
 
-	private suspend fun loadCollections(): List<BaseItemDto> {
+	/**
+	 * Box sets live in their own library, so they carry no hint about the media type they
+	 * belong to. Each candidate is probed for members of the requested kind and only kept
+	 * when it actually contains some — otherwise the movie collections would also show up
+	 * under Shows.
+	 */
+	private suspend fun loadCollections(mediaType: CinemaMediaType): List<BaseItemDto> = coroutineScope {
 		val result by api.itemsApi.getItems(
 			includeItemTypes = setOf(BaseItemKind.BOX_SET),
 			recursive = true,
@@ -295,7 +315,29 @@ class CinemaHomeViewModel(
 			imageTypeLimit = 1,
 			limit = COLLECTION_LIMIT,
 		)
-		return result.items
+
+		result.items
+			.chunked(COLLECTION_PROBE_CHUNK)
+			.flatMap { chunk ->
+				chunk
+					.map { collection -> async { collection.takeIf { contains(it.id, mediaType) } } }
+					.awaitAll()
+			}
+			.filterNotNull()
+	}
+
+	private suspend fun contains(collectionId: UUID, mediaType: CinemaMediaType): Boolean = try {
+		val result by api.itemsApi.getItems(
+			parentId = collectionId,
+			includeItemTypes = setOf(mediaType.itemKind),
+			recursive = true,
+			limit = 0,
+			enableTotalRecordCount = true,
+		)
+		result.totalRecordCount > 0
+	} catch (error: ApiClientException) {
+		Timber.w(error, "Failed to probe collection %s", collectionId)
+		false
 	}
 
 	/**
@@ -324,7 +366,7 @@ class CinemaHomeViewModel(
 			.sorted()
 
 		return genreNames.mapNotNull { genre ->
-			runCatching {
+			try {
 				val result by api.itemsApi.getItems(
 					parentId = libraryId,
 					includeItemTypes = setOf(mediaType.itemKind),
@@ -337,16 +379,22 @@ class CinemaHomeViewModel(
 					limit = GENRE_ITEM_LIMIT,
 					enableTotalRecordCount = false,
 				)
-				CinemaGenreRow(genre, result.items)
-			}.getOrNull()?.takeIf { it.items.isNotEmpty() }
+				CinemaGenreRow(genre, result.items).takeIf { it.items.isNotEmpty() }
+			} catch (error: ApiClientException) {
+				Timber.w(error, "Failed to load genre row %s", genre)
+				null
+			}
 		}
 	}
 
 	/** Fetches the full item before navigating to playback, matching the web behaviour. */
-	suspend fun getFullItem(id: UUID): BaseItemDto? = runCatching {
+	suspend fun getFullItem(id: UUID): BaseItemDto? = try {
 		val item by api.userLibraryApi.getItem(itemId = id)
 		item
-	}.getOrNull()
+	} catch (error: ApiClientException) {
+		Timber.w(error, "Failed to load item %s", id)
+		null
+	}
 
 	fun posterUrl(item: BaseItemDto): String? =
 		imageHelper.getPrimaryImageUrl(item, preferParentThumb = false, fillWidth = POSTER_IMAGE_WIDTH)
@@ -384,6 +432,7 @@ class CinemaHomeViewModel(
 		const val RESUME_LIMIT = 20
 		const val CATALOG_PAGE_SIZE = 60
 		const val COLLECTION_LIMIT = 200
+		const val COLLECTION_PROBE_CHUNK = 8
 		const val GENRE_ROW_LIMIT = 12
 		const val GENRE_ITEM_LIMIT = 20
 		const val GENRE_SAMPLE_SIZE = 300

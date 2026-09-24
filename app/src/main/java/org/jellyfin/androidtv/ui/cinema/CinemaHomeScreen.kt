@@ -99,12 +99,12 @@ fun CinemaHomeScreen(
 						.fillMaxSize()
 						.focusRestorer(),
 					contentPadding = PaddingValues(
-						start = 28.dp,
-						end = 28.dp,
-						top = 24.dp,
+						start = CinemaDimens.PageGutter,
+						end = CinemaDimens.PageGutter,
+						top = CinemaDimens.PageGutter,
 						bottom = CinemaDimens.Overscan,
 					),
-					verticalArrangement = Arrangement.spacedBy(28.dp),
+					verticalArrangement = Arrangement.spacedBy(CinemaDimens.SectionGap),
 				) {
 					item(key = "header") {
 						CinemaHeader(
@@ -112,9 +112,14 @@ fun CinemaHomeScreen(
 							selectedIndex = state.view.ordinal,
 							onSelect = { onSelectView(CinemaView.entries[it]) },
 							title = stringResource(
-								when (state.mediaType) {
-									CinemaMediaType.Movies -> R.string.lbl_movies
-									CinemaMediaType.Shows -> R.string.lbl_tv_series
+								when (state.view) {
+									CinemaView.All -> when (state.mediaType) {
+										CinemaMediaType.Movies -> R.string.lbl_movies
+										CinemaMediaType.Shows -> R.string.lbl_tv_series
+									}
+
+									CinemaView.Collections -> R.string.lbl_collections
+									CinemaView.Genres -> R.string.lbl_genres
 								}
 							),
 						)
@@ -270,24 +275,13 @@ private fun LazyListScope.allView(
 			}
 		}
 
-		// The catalog is chunked into rows so it can live inside the outer LazyColumn.
-		// A nested LazyVerticalGrid is not allowed and would also break D-Pad focus.
-		val rows = state.catalog.chunked(CATALOG_COLUMNS)
-		items(rows.size, key = { "catalog-row-$it" }) { rowIndex ->
-			Row(horizontalArrangement = Arrangement.spacedBy(CinemaDimens.GridHorizontalGap)) {
-				rows[rowIndex].forEach { item ->
-					CinemaPosterCard(
-						title = item.cinemaTitle,
-						subtitle = item.cinemaSubtitle,
-						imageUrl = posterUrl(item),
-						progress = item.cinemaProgress,
-						onClick = { actions.onOpenItem(item) },
-						onLongClick = { actions.onItemMenu(item) },
-						width = CATALOG_CARD_WIDTH,
-					)
-				}
-			}
-		}
+		cinemaGrid(
+			items = state.catalog,
+			posterUrl = posterUrl,
+			onOpenItem = actions.onOpenItem,
+			keyPrefix = "catalog",
+			onItemMenu = actions.onItemMenu,
+		)
 	}
 }
 
@@ -304,20 +298,14 @@ private fun LazyListScope.collectionsView(
 		)
 	}
 
-	val rows = state.collections.chunked(CATALOG_COLUMNS)
-	items(rows.size, key = { "collection-row-$it" }) { rowIndex ->
-		Row(horizontalArrangement = Arrangement.spacedBy(CinemaDimens.GridHorizontalGap)) {
-			rows[rowIndex].forEach { item ->
-				CinemaPosterCard(
-					title = item.cinemaTitle,
-					subtitle = item.productionYear?.toString(),
-					imageUrl = posterUrl(item),
-					onClick = { actions.onOpenItem(item) },
-					width = CATALOG_CARD_WIDTH,
-				)
-			}
-		}
-	}
+	cinemaGrid(
+		items = state.collections,
+		posterUrl = posterUrl,
+		onOpenItem = actions.onOpenItem,
+		keyPrefix = "collection",
+		// Collections have no release year of their own.
+		subtitle = { null },
+	)
 }
 
 private fun LazyListScope.genresView(
@@ -343,7 +331,7 @@ private fun LazyListScope.genresView(
 						progress = item.cinemaProgress,
 						onClick = { actions.onOpenItem(item) },
 						onLongClick = { actions.onItemMenu(item) },
-						width = CATALOG_CARD_WIDTH,
+						width = CinemaDimens.RowCardWidth,
 					)
 				}
 			}
@@ -358,7 +346,7 @@ private fun CinemaSkeletonRow() {
 		repeat(SKELETON_CARDS) {
 			Box(
 				modifier = Modifier
-					.width(CATALOG_CARD_WIDTH)
+					.width(CinemaDimens.GridCardWidth)
 					.aspectRatio(CinemaDimens.PosterAspect)
 					.clip(CinemaDimens.CardShape)
 					.cinemaSkeleton(),
@@ -368,6 +356,4 @@ private fun CinemaSkeletonRow() {
 }
 
 private const val LOAD_MORE_THRESHOLD = 3
-private const val CATALOG_COLUMNS = 6
-private const val SKELETON_CARDS = 6
-private val CATALOG_CARD_WIDTH = 185.dp
+private const val SKELETON_CARDS = CinemaDimens.GridColumns

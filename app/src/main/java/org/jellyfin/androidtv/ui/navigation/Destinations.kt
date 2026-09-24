@@ -12,6 +12,7 @@ import org.jellyfin.androidtv.ui.browsing.CollectionFragment
 import org.jellyfin.androidtv.ui.browsing.GenericFolderFragment
 import org.jellyfin.androidtv.ui.browsing.SuggestedMoviesFragment
 import org.jellyfin.androidtv.ui.cinema.CinemaDetailFragment
+import org.jellyfin.androidtv.ui.cinema.CinemaSearchFragment
 import org.jellyfin.androidtv.ui.cinema.CinemaHomeFragment
 import org.jellyfin.androidtv.ui.itemdetail.FullDetailsFragment
 import org.jellyfin.androidtv.ui.itemdetail.ItemListFragment
@@ -34,8 +35,8 @@ import java.util.UUID
 object Destinations {
 	// General
 	val home = fragmentDestination<CinemaHomeFragment>()
-	fun search(query: String? = null) = fragmentDestination<SearchFragment> {
-		putString(SearchFragment.EXTRA_QUERY, query)
+	fun search(query: String? = null) = fragmentDestination<CinemaSearchFragment> {
+		putString(CinemaSearchFragment.ARGUMENT_QUERY, query)
 	}
 
 	// Browsing

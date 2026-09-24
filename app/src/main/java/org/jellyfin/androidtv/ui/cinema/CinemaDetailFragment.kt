@@ -25,6 +25,8 @@ class CinemaDetailFragment : Fragment() {
 	private val navigationRepository by inject<NavigationRepository>()
 	private val playbackLauncher by inject<PlaybackLauncher>()
 
+	private var loaded = false
+
 	private val itemId by lazy {
 		requireNotNull(requireArguments().getString(ARGUMENT_ITEM_ID)).let(UUID::fromString)
 	}
@@ -51,6 +53,7 @@ class CinemaDetailFragment : Fragment() {
 					onToggleFavorite = viewModel::toggleFavorite,
 					onTogglePlayed = viewModel::togglePlayed,
 					onOpenItem = ::openItem,
+					onSelectSort = viewModel::setSort,
 				),
 				posterUrl = viewModel::posterUrl,
 				modifier = Modifier.fillMaxSize(),
@@ -60,8 +63,9 @@ class CinemaDetailFragment : Fragment() {
 
 	override fun onResume() {
 		super.onResume()
-		// Playback position, watched and favorite state can change while away.
-		viewModel.refresh()
+		// Playback position, watched and favorite state can change while away. The very
+		// first resume follows onCreate's load, so reloading again would be wasteful.
+		if (loaded) viewModel.refresh() else loaded = true
 	}
 
 	private fun openItem(item: BaseItemDto) {

@@ -106,16 +106,31 @@ object CinemaDimens {
 	val RailIconSize = 23.dp
 	val RailGap = 12.dp
 
-	val RowGap = 18.dp
+	val RowGap = 16.dp
 	val PosterCardWidth = 240.dp
+
+	/**
+	 * Grid geometry measured from the reference screenshots: seven poster columns fill the
+	 * shell with a 12 dp gutter between them, so a card is ~108 dp wide on a 960 dp screen.
+	 */
+	const val GridColumns = 7
+	val GridCardWidth = 108.dp
+	/** Genre and recommendation rails use slightly larger cards than the dense grid. */
+	val RowCardWidth = 150.dp
+
+	/** Horizontal padding between the shell edge and its content. */
+	val PageGutter = 20.dp
+
+	/** Vertical rhythm between the header, hero, rails and the grid. */
+	val SectionGap = 22.dp
 	const val PosterAspect = 2f / 3f
 	const val WideAspect = 16f / 10f
 	const val HeroAspect = 2.35f
 	val HeroMinHeight = 450.dp
 
 	val GridMinCellWidth = 155.dp
-	val GridVerticalGap = 26.dp
-	val GridHorizontalGap = 20.dp
+	val GridVerticalGap = 20.dp
+	val GridHorizontalGap = 12.dp
 
 	/** Overscan safe padding for TV. */
 	val Overscan = 48.dp
@@ -127,7 +142,7 @@ object CinemaDimens {
 
 	// Typography — web rem values scaled ~1.3x for 10-foot viewing (spec §1.2 note).
 	val HeroTitleSize = 56.sp
-	val PageTitleSize = 44.sp
+	val PageTitleSize = 38.sp
 	val SectionTitleSize = 26.sp
 	val CardTitleSize = 19.sp
 	val CardSubtitleSize = 17.sp
@@ -136,4 +151,5 @@ object CinemaDimens {
 	val BodySize = 18.sp
 	val EyebrowSize = 14.sp
 	val TagTextSize = 15.sp
+	val MetaSize = 15.sp
 }
