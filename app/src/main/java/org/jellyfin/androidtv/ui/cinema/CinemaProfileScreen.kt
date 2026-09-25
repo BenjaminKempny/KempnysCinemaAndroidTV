@@ -39,7 +39,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.ui.base.Icon
 import org.jellyfin.androidtv.ui.base.Text
@@ -306,7 +305,7 @@ private fun AccountAvatar(
 		contentAlignment = Alignment.Center,
 	) {
 		when {
-			imageUrl != null -> AsyncImage(
+			imageUrl != null -> CinemaAsyncImage(
 				model = imageUrl,
 				contentDescription = null,
 				contentScale = ContentScale.Crop,

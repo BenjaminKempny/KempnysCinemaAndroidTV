@@ -168,8 +168,8 @@ val appModule = module {
 	viewModel { StillWatchingViewModel(get(), get(), get(), get()) }
 	viewModel { PhotoPlayerViewModel(get(), get()) }
 	viewModel { SearchViewModel(get()) }
-	viewModel { CinemaHomeViewModel(get(), get(), get()) }
-	viewModel { CinemaDetailViewModel(get(), get()) }
+	viewModel { CinemaHomeViewModel(get(), get()) }
+	viewModel { CinemaDetailViewModel(get()) }
 	viewModel { CinemaProfileViewModel(get(), get(), get(), get(), get()) }
 	viewModel { DreamViewModel(get(), get(), get(), get(), get()) }
 	viewModel { SettingsViewModel() }

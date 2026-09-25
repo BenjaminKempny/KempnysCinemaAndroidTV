@@ -14,43 +14,42 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.ui.base.Text
 
 /**
- * Fixed hero height. Kept well below the 540 dp of a 1080p TV viewport so the whole
- * slide — including the play buttons and the paging arrows — fits on screen at once.
+ * Default hero height. The caller limits it to the available viewport, keeping the
+ * entire section visible when any of its buttons receives focus.
  */
-private val HERO_HEIGHT = 320.dp
+val CinemaHeroMaxHeight = 320.dp
+
+/** Never shrink the slide below this, the buttons would not fit anymore. */
+val CinemaHeroMinHeight = 230.dp
 
 /** Line height as a multiple of the font size. */
 private const val TITLE_LINE_HEIGHT_FACTOR = 1.08f
@@ -72,7 +71,7 @@ data class CinemaHeroItem(
 	val id: java.util.UUID,
 	val title: String,
 	val overview: String?,
-	val backdropUrl: String?,
+	val backdropUrl: CinemaArtwork?,
 	/** Genres, rendered as chips. */
 	val tags: List<String>,
 	/** Plain meta line: year, runtime, community rating, end time. */
@@ -97,19 +96,18 @@ fun CinemaHero(
 	onPlay: (CinemaHeroItem) -> Unit,
 	onDetails: (CinemaHeroItem) -> Unit,
 	modifier: Modifier = Modifier,
+	heroHeight: Dp = CinemaHeroMaxHeight,
 	playFocusRequester: FocusRequester = remember { FocusRequester() },
 	requestInitialFocus: Boolean = true,
 	onInitialFocusRequested: () -> Unit = {},
+	/** DPAD_LEFT on the play button leaves the content and enters the sidebar (spec §2.1). */
+	leftFocusRequester: FocusRequester? = null,
 ) {
 	if (items.isEmpty()) return
 
 	var index by remember(items) { mutableStateOf(0) }
 	var hasFocus by remember { mutableStateOf(false) }
 	val reducedMotion = rememberReducedMotion()
-	val scope = rememberCoroutineScope()
-	// Focusing the paging arrows at the bottom edge would otherwise only scroll them
-	// into view, leaving the top half of the slide (title and play button) off screen.
-	val bringIntoViewRequester = remember { BringIntoViewRequester() }
 
 	// Auto rotation, paused while focused.
 	LaunchedEffect(items, hasFocus) {
@@ -136,20 +134,15 @@ fun CinemaHero(
 	Box(
 		modifier = modifier
 			.fillMaxWidth()
-			// A fixed height keeps every slide inside the TV viewport; the former
-			// aspect ratio + 450 dp minimum was taller than the shell and cut off the
-			// meta line and the buttons.
-			.height(HERO_HEIGHT)
+			// Bound the slide to the shell viewport so its full bounds can be revealed.
+			.height(heroHeight)
+			.cinemaFocusSection()
 			.clip(CinemaDimens.HeroShape)
 			.background(CinemaColors.HeroBackground)
 			.border(1.dp, CinemaColors.Border, CinemaDimens.HeroShape)
-			.bringIntoViewRequester(bringIntoViewRequester)
-			.onFocusChanged {
-				hasFocus = it.hasFocus
-				// Always scroll the complete slide into view, no matter which of its
-				// buttons received the focus.
-				if (it.hasFocus) scope.launch { bringIntoViewRequester.bringIntoView() }
-			}
+			// cinemaFocusSection forwards the button's request as the entire slide;
+			// it never starts a competing scroll coroutine.
+			.onFocusChanged { hasFocus = it.hasFocus }
 			.focusGroup(),
 	) {
 		Crossfade(
@@ -159,7 +152,7 @@ fun CinemaHero(
 			modifier = Modifier.fillMaxSize(),
 		) { url ->
 			if (url != null) {
-				AsyncImage(
+				CinemaAsyncImage(
 					model = url,
 					contentDescription = null,
 					contentScale = ContentScale.Crop,
@@ -234,7 +227,9 @@ fun CinemaHero(
 					icon = painterResource(if (item.resumable) R.drawable.ic_resume else R.drawable.ic_play),
 					primary = true,
 					onClick = { onPlay(item) },
-					modifier = Modifier.focusRequester(playFocusRequester),
+					modifier = Modifier
+						.focusRequester(playFocusRequester)
+						.focusProperties { if (leftFocusRequester != null) left = leftFocusRequester },
 				)
 				CinemaButton(
 					text = stringResource(R.string.cinema_details),

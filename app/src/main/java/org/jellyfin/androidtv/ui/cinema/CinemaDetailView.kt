@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -40,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.ui.base.Text
 import org.jellyfin.sdk.model.api.BaseItemDto
@@ -73,8 +71,8 @@ data class CinemaDetailActions(
 fun CinemaDetailScreen(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
-	posterUrl: (BaseItemDto) -> String?,
-	thumbUrl: (BaseItemDto) -> String?,
+	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
 	personImageUrl: (BaseItemPerson) -> String?,
 	modifier: Modifier = Modifier,
 ) {
@@ -86,7 +84,7 @@ fun CinemaDetailScreen(
 	}
 
 	CinemaBackground(modifier) {
-		LazyColumn(
+		CinemaLazyColumn(
 			modifier = Modifier
 				.fillMaxSize()
 				.focusRestorer(),
@@ -140,7 +138,7 @@ private fun LazyListScope.collectionContent(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
 	collection: BaseItemDto,
-	posterUrl: (BaseItemDto) -> String?,
+	posterUrl: (BaseItemDto) -> CinemaArtwork?,
 ) {
 	item(key = "collection-header") {
 		Row(
@@ -155,7 +153,7 @@ private fun LazyListScope.collectionContent(
 					.background(CinemaColors.CardPlaceholder),
 			) {
 				if (state.posterUrl != null) {
-					AsyncImage(
+					CinemaAsyncImage(
 						model = state.posterUrl,
 						contentDescription = null,
 						contentScale = ContentScale.Crop,
@@ -217,8 +215,8 @@ private fun LazyListScope.detailContent(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
 	detailItem: BaseItemDto,
-	posterUrl: (BaseItemDto) -> String?,
-	thumbUrl: (BaseItemDto) -> String?,
+	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
 	personImageUrl: (BaseItemPerson) -> String?,
 	playFocusRequester: FocusRequester,
 ) {
@@ -271,8 +269,8 @@ private fun LazyListScope.detailContent(
 private fun LazyListScope.seriesSections(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
-	posterUrl: (BaseItemDto) -> String?,
-	thumbUrl: (BaseItemDto) -> String?,
+	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
 ) {
 	state.nextUp?.let { nextUp ->
 		item(key = "next-up") {
@@ -323,7 +321,7 @@ private fun LazyListScope.seriesSections(
 private fun LazyListScope.episodeList(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
-	thumbUrl: (BaseItemDto) -> String?,
+	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
 ) {
 	if (state.children.isEmpty()) return
 
@@ -363,12 +361,13 @@ private fun CinemaDetailHero(
 		modifier = Modifier
 			.fillMaxWidth()
 			.height(DETAIL_HERO_HEIGHT)
+			.cinemaFocusSection()
 			.clip(CinemaDimens.HeroShape)
 			.background(CinemaColors.HeroBackground)
 			.border(1.dp, CinemaColors.Border, CinemaDimens.HeroShape),
 	) {
 		if (state.backdropUrl != null) {
-			AsyncImage(
+			CinemaAsyncImage(
 				model = state.backdropUrl,
 				contentDescription = null,
 				contentScale = ContentScale.Crop,
@@ -390,7 +389,7 @@ private fun CinemaDetailHero(
 					.background(CinemaColors.CardPlaceholder),
 			) {
 				if (state.posterUrl != null) {
-					AsyncImage(
+					CinemaAsyncImage(
 						model = state.posterUrl,
 						contentDescription = null,
 						contentScale = ContentScale.Crop,

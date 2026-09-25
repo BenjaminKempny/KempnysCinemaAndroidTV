@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name_release" translatable="false" tools:ignore="UnusedResources">Jellyfin</string>
-    <string name="app_name_debug" translatable="false" tools:ignore="UnusedResources">Jellyfin Debug</string>
+    <string name="app_name_release" translatable="false" tools:ignore="UnusedResources">Kempny Cinema</string>
+    <string name="app_name_debug" translatable="false" tools:ignore="UnusedResources">Kempny Cinema</string>
     <string name="video_error_unknown_error">Failed to load video</string>
     <string name="loading">Loading…</string>
     <string name="btn_cancel">Cancel</string>
@@ -698,6 +698,8 @@
     <string name="truehd_atmos">TrueHD Atmos</string>
 
     <!-- Cinema UI -->
+    <string name="pref_cinema_light_theme">Light Cinema theme</string>
+    <string name="pref_cinema_light_theme_description">Use a light appearance for home, details, search and profile</string>
     <string name="cinema_tab_all">All</string>
     <string name="cinema_tab_collections">Collections</string>
     <string name="cinema_tab_genres">Genres</string>
@@ -727,6 +729,4 @@
     <string name="cinema_profile_accounts">Accounts on this server</string>
     <string name="cinema_profile_signed_in">Signed in as</string>
     <string name="cinema_profile_requires_login">Password required</string>
-    <string name="pref_cinema_light_theme">Light cinema theme</string>
-    <string name="pref_cinema_light_theme_description">Use the light appearance for the home, detail, search and profile screens</string>
 </resources>

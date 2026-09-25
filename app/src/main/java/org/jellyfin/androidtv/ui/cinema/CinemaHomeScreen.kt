@@ -3,6 +3,7 @@ package org.jellyfin.androidtv.ui.cinema
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -30,15 +30,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.ui.base.Text
 import org.jellyfin.sdk.model.api.BaseItemDto
+
+/**
+ * D-Pad contract (spec §2.1): the first focusable of every row hands `DPAD_LEFT` over to
+ * the sidebar. Without it Compose keeps searching inside the scrolling content and the
+ * page jumps back to the very top instead of leaving it.
+ */
+internal fun Modifier.railOnLeft(
+	railFocusRequester: FocusRequester?,
+	enabled: Boolean,
+): Modifier = if (railFocusRequester == null || !enabled) this
+else focusProperties { left = railFocusRequester }
 
 /** Callbacks the host fragment wires up to navigation and playback. */
 data class CinemaHomeActions(
@@ -62,8 +75,8 @@ data class CinemaHomeActions(
 fun CinemaHomeScreen(
 	state: CinemaHomeState,
 	actions: CinemaHomeActions,
-	posterUrl: (BaseItemDto) -> String?,
-	thumbUrl: (BaseItemDto) -> String?,
+	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
 	onSelectView: (CinemaView) -> Unit,
 	onSelectSort: (CinemaSort) -> Unit,
 	onLoadNextPage: () -> Unit,
@@ -71,6 +84,9 @@ fun CinemaHomeScreen(
 ) {
 	val listState = rememberLazyListState()
 	val heroFocusRequester = remember { FocusRequester() }
+	// DPAD_LEFT at the left edge of the content must enter the sidebar (spec §2.1) — the
+	// default focus search walks up into the scrollable instead and jumps to the top.
+	val railFocusRequester = remember { FocusRequester() }
 	// The hero is recycled by the LazyColumn whenever it leaves the viewport. Without
 	// this guard it would request the focus again on every re-entry, yanking the user
 	// out of the catalog grid (and out of the tab row) back to the spotlight.
@@ -91,6 +107,7 @@ fun CinemaHomeScreen(
 			CinemaRail(
 				selected = railSelection,
 				onSelect = actions.onRailSelect,
+				focusRequester = railFocusRequester,
 			)
 
 			CinemaShell(
@@ -98,58 +115,69 @@ fun CinemaHomeScreen(
 					.fillMaxSize()
 					.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 24.dp),
 			) {
-				LazyColumn(
-					state = listState,
-					// Restores focus to the last focused row instead of letting it fall
-					// back to the header (which would scroll the page to the top).
-					modifier = Modifier
-						.fillMaxSize()
-						.focusRestorer(),
-					contentPadding = PaddingValues(
-						start = CinemaDimens.PageGutter,
-						end = CinemaDimens.PageGutter,
-						top = CinemaDimens.PageGutter,
-						bottom = CinemaDimens.Overscan,
-					),
-					verticalArrangement = Arrangement.spacedBy(CinemaDimens.SectionGap),
-				) {
-					item(key = "header") {
-						CinemaHeader(
-							tabs = tabs,
-							selectedIndex = state.view.ordinal,
-							onSelect = { onSelectView(CinemaView.entries[it]) },
-							title = stringResource(
-								when (state.view) {
-									CinemaView.All -> when (state.mediaType) {
-										CinemaMediaType.Movies -> R.string.lbl_movies
-										CinemaMediaType.Shows -> R.string.lbl_tv_series
+				BoxWithConstraints(Modifier.fillMaxSize()) {
+					// The entire slide must fit the viewport. The header may scroll away;
+					// subtracting its estimated height needlessly squeezed titles and buttons.
+					val heroHeight = (
+						maxHeight - CinemaDimens.PageGutter - CinemaDimens.Overscan
+						).coerceIn(CinemaHeroMinHeight, CinemaHeroMaxHeight)
+
+					CinemaLazyColumn(
+						state = listState,
+						// Restores focus to the last focused row instead of letting it fall
+						// back to the header (which would scroll the page to the top).
+						modifier = Modifier
+							.fillMaxSize()
+							.focusRestorer(),
+						contentPadding = PaddingValues(
+							start = CinemaDimens.PageGutter,
+							end = CinemaDimens.PageGutter,
+							top = CinemaDimens.PageGutter,
+							bottom = CinemaDimens.Overscan,
+						),
+						verticalArrangement = Arrangement.spacedBy(CinemaDimens.SectionGap),
+					) {
+						item(key = "header") {
+							CinemaHeader(
+								tabs = tabs,
+								selectedIndex = state.view.ordinal,
+								onSelect = { onSelectView(CinemaView.entries[it]) },
+								leftFocusRequester = railFocusRequester,
+								title = stringResource(
+									when (state.view) {
+										CinemaView.All -> when (state.mediaType) {
+											CinemaMediaType.Movies -> R.string.lbl_movies
+											CinemaMediaType.Shows -> R.string.lbl_tv_series
+										}
+
+										CinemaView.Collections -> R.string.lbl_collections
+										CinemaView.Genres -> R.string.lbl_genres
 									}
+								),
+							)
+						}
 
-									CinemaView.Collections -> R.string.lbl_collections
-									CinemaView.Genres -> R.string.lbl_genres
-								}
-							),
-						)
-					}
+						when (state.view) {
+							CinemaView.All -> allView(
+								state = state,
+								actions = actions,
+								onSelectSort = onSelectSort,
+								posterUrl = posterUrl,
+								thumbUrl = thumbUrl,
+								heroFocusRequester = heroFocusRequester,
+								requestHeroFocus = !heroFocusRequested,
+								onHeroFocusRequested = { heroFocusRequested = true },
+								heroHeight = heroHeight,
+								railFocusRequester = railFocusRequester,
+							)
 
-					when (state.view) {
-						CinemaView.All -> allView(
-							state = state,
-							actions = actions,
-							onSelectSort = onSelectSort,
-							posterUrl = posterUrl,
-							thumbUrl = thumbUrl,
-							heroFocusRequester = heroFocusRequester,
-							requestHeroFocus = !heroFocusRequested,
-							onHeroFocusRequested = { heroFocusRequested = true },
-						)
+							CinemaView.Collections -> collectionsView(state, actions, posterUrl, railFocusRequester)
+							CinemaView.Genres -> genresView(state, actions, posterUrl, railFocusRequester)
+						}
 
-						CinemaView.Collections -> collectionsView(state, actions, posterUrl)
-						CinemaView.Genres -> genresView(state, actions, posterUrl)
-					}
-
-					if (state.loading) {
-						item(key = "skeleton") { CinemaSkeletonRow() }
+						if (state.loading) {
+							item(key = "skeleton") { CinemaSkeletonRow() }
+						}
 					}
 				}
 			}
@@ -180,6 +208,7 @@ private fun CinemaHeader(
 	selectedIndex: Int,
 	onSelect: (Int) -> Unit,
 	title: String,
+	leftFocusRequester: FocusRequester? = null,
 ) {
 	Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
 		Box(Modifier.fillMaxWidth()) {
@@ -196,6 +225,7 @@ private fun CinemaHeader(
 				tabs = tabs,
 				selectedIndex = selectedIndex,
 				onSelect = onSelect,
+				leftFocusRequester = leftFocusRequester,
 				modifier = Modifier.align(Alignment.Center),
 			)
 		}
@@ -214,11 +244,13 @@ private fun LazyListScope.allView(
 	state: CinemaHomeState,
 	actions: CinemaHomeActions,
 	onSelectSort: (CinemaSort) -> Unit,
-	posterUrl: (BaseItemDto) -> String?,
-	thumbUrl: (BaseItemDto) -> String?,
+	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
 	heroFocusRequester: FocusRequester,
 	requestHeroFocus: Boolean,
 	onHeroFocusRequested: () -> Unit,
+	heroHeight: Dp,
+	railFocusRequester: FocusRequester?,
 ) {
 	if (state.hero.isNotEmpty()) {
 		item(key = "hero") {
@@ -226,9 +258,11 @@ private fun LazyListScope.allView(
 				items = state.hero,
 				onPlay = actions.onPlayHeroItem,
 				onDetails = actions.onOpenHeroItem,
+				heroHeight = heroHeight,
 				playFocusRequester = heroFocusRequester,
 				requestInitialFocus = requestHeroFocus,
 				onInitialFocusRequested = onHeroFocusRequested,
+				leftFocusRequester = railFocusRequester,
 			)
 		}
 	}
@@ -252,7 +286,7 @@ private fun LazyListScope.allView(
 						contentPadding = PaddingValues(horizontal = 24.dp),
 						horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
 					) {
-						items(state.continueWatching, key = { it.id }) { item ->
+						itemsIndexed(state.continueWatching, key = { _, item -> item.id }) { index, item ->
 							CinemaWideCard(
 								title = item.cinemaTitle,
 								subtitle = item.cinemaSubtitle,
@@ -260,6 +294,7 @@ private fun LazyListScope.allView(
 								progress = item.cinemaProgress,
 								onClick = { actions.onPlayItem(item) },
 								onLongClick = { actions.onItemMenu(item) },
+								modifier = Modifier.railOnLeft(railFocusRequester, index == 0),
 							)
 						}
 					}
@@ -294,6 +329,7 @@ private fun LazyListScope.allView(
 			onOpenItem = actions.onOpenItem,
 			keyPrefix = "catalog",
 			onItemMenu = actions.onItemMenu,
+			railFocusRequester = railFocusRequester,
 		)
 	}
 }
@@ -301,7 +337,8 @@ private fun LazyListScope.allView(
 private fun LazyListScope.collectionsView(
 	state: CinemaHomeState,
 	actions: CinemaHomeActions,
-	posterUrl: (BaseItemDto) -> String?,
+	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	railFocusRequester: FocusRequester?,
 ) {
 	item(key = "collections-subtitle") {
 		Text(
@@ -318,13 +355,15 @@ private fun LazyListScope.collectionsView(
 		keyPrefix = "collection",
 		// Collections have no release year of their own.
 		subtitle = { null },
+		railFocusRequester = railFocusRequester,
 	)
 }
 
 private fun LazyListScope.genresView(
 	state: CinemaHomeState,
 	actions: CinemaHomeActions,
-	posterUrl: (BaseItemDto) -> String?,
+	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	railFocusRequester: FocusRequester?,
 ) {
 	items(state.genreRows, key = { it.name }) { row ->
 		Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -336,7 +375,7 @@ private fun LazyListScope.genresView(
 					.focusRestorer(),
 				horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
 			) {
-				items(row.items, key = { it.id }) { item ->
+				itemsIndexed(row.items, key = { _, item -> item.id }) { index, item ->
 					CinemaPosterCard(
 						title = item.cinemaTitle,
 						subtitle = item.cinemaSubtitle,
@@ -345,6 +384,7 @@ private fun LazyListScope.genresView(
 						onClick = { actions.onOpenItem(item) },
 						onLongClick = { actions.onItemMenu(item) },
 						width = CinemaDimens.RowCardWidth,
+						modifier = Modifier.railOnLeft(railFocusRequester, index == 0),
 					)
 				}
 			}

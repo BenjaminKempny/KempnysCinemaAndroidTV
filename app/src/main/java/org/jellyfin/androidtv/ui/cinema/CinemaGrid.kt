@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import org.jellyfin.sdk.model.api.BaseItemDto
 
 /**
@@ -15,17 +16,19 @@ import org.jellyfin.sdk.model.api.BaseItemDto
  */
 fun LazyListScope.cinemaGrid(
 	items: List<BaseItemDto>,
-	posterUrl: (BaseItemDto) -> String?,
+	posterUrl: (BaseItemDto) -> CinemaArtwork?,
 	onOpenItem: (BaseItemDto) -> Unit,
 	keyPrefix: String,
 	onItemMenu: ((BaseItemDto) -> Unit)? = null,
 	subtitle: (BaseItemDto) -> String? = { it.cinemaSubtitle },
+	/** `DPAD_LEFT` on the first column enters the sidebar instead of the scroll container. */
+	railFocusRequester: FocusRequester? = null,
 ) {
 	val rows = items.chunked(CinemaDimens.GridColumns)
 
 	items(rows.size, key = { "$keyPrefix-row-$it" }) { rowIndex ->
 		Row(horizontalArrangement = Arrangement.spacedBy(CinemaDimens.GridHorizontalGap)) {
-			rows[rowIndex].forEach { item ->
+			rows[rowIndex].forEachIndexed { columnIndex, item ->
 				CinemaPosterCard(
 					title = item.cinemaTitle,
 					subtitle = subtitle(item),
@@ -34,7 +37,7 @@ fun LazyListScope.cinemaGrid(
 					onClick = { onOpenItem(item) },
 					onLongClick = onItemMenu?.let { menu -> { menu(item) } },
 					width = CinemaDimens.GridCardWidth,
-					modifier = Modifier,
+					modifier = Modifier.railOnLeft(railFocusRequester, columnIndex == 0),
 				)
 			}
 		}

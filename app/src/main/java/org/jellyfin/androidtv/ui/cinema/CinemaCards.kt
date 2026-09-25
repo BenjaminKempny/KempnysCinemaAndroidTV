@@ -38,7 +38,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil3.compose.AsyncImage
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.ui.base.Icon
 import org.jellyfin.androidtv.ui.base.Text
@@ -54,7 +53,7 @@ import org.jellyfin.androidtv.ui.base.Text
 fun CinemaPosterCard(
 	title: String,
 	subtitle: String?,
-	imageUrl: String?,
+	imageUrl: CinemaArtwork?,
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 	onLongClick: (() -> Unit)? = null,
@@ -144,7 +143,7 @@ fun CinemaPosterCard(
 fun CinemaWideCard(
 	title: String,
 	subtitle: String?,
-	imageUrl: String?,
+	imageUrl: CinemaArtwork?,
 	progress: Float?,
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
@@ -254,7 +253,7 @@ fun CinemaProgressBar(
 }
 
 @Composable
-private fun CardArtwork(imageUrl: String?, contentDescription: String?) {
+private fun CardArtwork(imageUrl: CinemaArtwork?, contentDescription: String?) {
 	if (imageUrl == null) {
 		Box(
 			modifier = Modifier
@@ -270,7 +269,7 @@ private fun CardArtwork(imageUrl: String?, contentDescription: String?) {
 			)
 		}
 	} else {
-		AsyncImage(
+		CinemaAsyncImage(
 			model = imageUrl,
 			contentDescription = contentDescription,
 			contentScale = ContentScale.Crop,
@@ -333,7 +332,7 @@ fun CinemaPersonCard(
 			contentAlignment = Alignment.Center,
 		) {
 			if (imageUrl != null) {
-				AsyncImage(
+				CinemaAsyncImage(
 					model = imageUrl,
 					contentDescription = name,
 					contentScale = ContentScale.Crop,
@@ -383,7 +382,7 @@ fun CinemaEpisodeRow(
 	meta: List<String>,
 	rating: Float?,
 	overview: String?,
-	imageUrl: String?,
+	imageUrl: CinemaArtwork?,
 	progress: Float?,
 	played: Boolean,
 	onClick: () -> Unit,

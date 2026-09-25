@@ -17,7 +17,7 @@ import org.jellyfin.androidtv.ui.navigation.Destinations
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
 import org.jellyfin.androidtv.ui.playback.PlaybackLauncher
 import org.jellyfin.androidtv.ui.search.SearchViewModel
-import org.jellyfin.androidtv.util.ImageHelper
+import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.koin.android.ext.android.inject
@@ -27,7 +27,7 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 class CinemaSearchFragment : Fragment() {
 	private val viewModel by viewModel<SearchViewModel>()
 	private val navigationRepository by inject<NavigationRepository>()
-	private val imageHelper by inject<ImageHelper>()
+	private val api by inject<ApiClient>()
 	private val playbackLauncher by inject<PlaybackLauncher>()
 
 	override fun onCreate(savedInstanceState: Bundle?) {
@@ -91,8 +91,7 @@ class CinemaSearchFragment : Fragment() {
 		navigationRepository.navigate(destination)
 	}
 
-	private fun posterUrl(item: BaseItemDto) =
-		imageHelper.getPrimaryImageUrl(item, preferParentThumb = false, fillWidth = POSTER_IMAGE_WIDTH)
+	private fun posterUrl(item: BaseItemDto) = item.cinemaPosterUrl(api, POSTER_IMAGE_WIDTH)
 
 	companion object {
 		const val ARGUMENT_QUERY = "query"

@@ -41,6 +41,9 @@ object CinemaMotion {
 	const val HeroCrossfadeDuration = 400
 	const val HeroRotationIntervalMs = 8_000L
 
+	/** Fade in of a freshly decoded artwork bitmap. */
+	const val ImageCrossfadeDuration = 200
+
 	fun <T> navPill(): FiniteAnimationSpec<T> = tween(NavPillDuration, easing = EaseOutQuint)
 	fun <T> focusZoom(): FiniteAnimationSpec<T> = tween(FocusZoomDuration, easing = EaseOutQuad)
 	fun <T> focusGlow(): FiniteAnimationSpec<T> = tween(FocusGlowDuration, easing = EaseOutQuad)

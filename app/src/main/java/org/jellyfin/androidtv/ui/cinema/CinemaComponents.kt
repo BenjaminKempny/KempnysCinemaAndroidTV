@@ -228,6 +228,8 @@ fun CinemaTabRow(
 	selectedIndex: Int,
 	onSelect: (Int) -> Unit,
 	modifier: Modifier = Modifier,
+	/** `DPAD_LEFT` on the first tab enters the sidebar (spec §2.1). */
+	leftFocusRequester: FocusRequester? = null,
 ) {
 	val density = LocalDensity.current
 	val tabWidths = remember(tabs.size) { mutableStateListOfZeros(tabs.size) }
@@ -299,6 +301,7 @@ fun CinemaTabRow(
 					onClick = { onSelect(index) },
 					modifier = Modifier
 						.focusRequester(tabRequesters[index])
+						.railOnLeft(leftFocusRequester, index == 0)
 						.onSizeChanged { tabWidths[index] = it.width },
 				)
 			}

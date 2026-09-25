@@ -23,6 +23,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
@@ -56,6 +58,8 @@ fun CinemaRail(
 	selected: CinemaRailItem,
 	onSelect: (CinemaRailItem) -> Unit,
 	modifier: Modifier = Modifier,
+	/** Lets the content hand `DPAD_LEFT` over to the rail (spec §2.1). */
+	focusRequester: FocusRequester? = null,
 ) {
 	val items = CinemaRailItem.entries
 	var focusedItem by remember { mutableStateOf<CinemaRailItem?>(null) }
@@ -89,8 +93,11 @@ fun CinemaRail(
 				.border(1.dp, CinemaColors.Border, CinemaDimens.ShellShape)
 				.padding(vertical = 12.dp, horizontal = 8.dp)
 				.onFocusChanged { if (!it.hasFocus) focusedItem = null }
-				.focusGroup()
-				.focusRestorer(),
+				.then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+				// `focusRestorer` has to sit *above* the group it restores, otherwise it
+				// never sees the child that was focused last.
+				.focusRestorer()
+				.focusGroup(),
 		) {
 			// The sliding pill lives behind the icons.
 			Box(

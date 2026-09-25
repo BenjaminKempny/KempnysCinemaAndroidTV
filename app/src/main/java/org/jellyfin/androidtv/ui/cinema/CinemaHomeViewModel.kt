@@ -16,10 +16,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.jellyfin.androidtv.data.repository.ItemRepository
 import org.jellyfin.androidtv.data.repository.UserViewsRepository
-import org.jellyfin.androidtv.util.ImageHelper
-import org.jellyfin.androidtv.util.apiclient.getUrl
-import org.jellyfin.androidtv.util.apiclient.itemBackdropImages
-import org.jellyfin.androidtv.util.apiclient.parentBackdropImages
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.exception.ApiClientException
 import org.jellyfin.sdk.api.client.extensions.itemsApi
@@ -79,7 +75,6 @@ data class CinemaHomeState(
 class CinemaHomeViewModel(
 	private val api: ApiClient,
 	private val userViewsRepository: UserViewsRepository,
-	private val imageHelper: ImageHelper,
 ) : ViewModel() {
 	private val _state = MutableStateFlow(CinemaHomeState())
 	val state: StateFlow<CinemaHomeState> = _state.asStateFlow()
@@ -396,18 +391,13 @@ class CinemaHomeViewModel(
 		null
 	}
 
-	fun posterUrl(item: BaseItemDto): String? =
-		imageHelper.getPrimaryImageUrl(item, preferParentThumb = false, fillWidth = POSTER_IMAGE_WIDTH)
+	fun posterUrl(item: BaseItemDto): CinemaArtwork = item.cinemaPosterUrl(api, POSTER_IMAGE_WIDTH)
 
-	fun thumbUrl(item: BaseItemDto): String? =
-		imageHelper.getPrimaryImageUrl(item, preferParentThumb = true, fillWidth = THUMB_IMAGE_WIDTH)
+	fun thumbUrl(item: BaseItemDto): CinemaArtwork = item.cinemaThumbUrl(api, THUMB_IMAGE_WIDTH)
 
 	/** Hero uses the backdrop and only falls back to the poster when none is available. */
-	private fun heroBackdropUrl(item: BaseItemDto): String? {
-		val backdrop = item.itemBackdropImages.firstOrNull() ?: item.parentBackdropImages.firstOrNull()
-		return backdrop?.getUrl(api, maxWidth = HERO_IMAGE_WIDTH)
-			?: imageHelper.getPrimaryImageUrl(item, preferParentThumb = false, fillWidth = HERO_IMAGE_WIDTH)
-	}
+	private fun heroBackdropUrl(item: BaseItemDto): CinemaArtwork =
+		item.cinemaBackdropUrl(api, HERO_IMAGE_WIDTH)
 
 	private fun BaseItemDto.toHeroItem(): CinemaHeroItem {
 		val meta = buildList {
