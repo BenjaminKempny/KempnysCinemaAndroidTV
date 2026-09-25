@@ -2,7 +2,6 @@ package org.jellyfin.androidtv.ui.cinema
 
 import android.os.Bundle
 import android.view.LayoutInflater
-import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
@@ -49,13 +48,14 @@ class CinemaDetailFragment : Fragment() {
 				actions = CinemaDetailActions(
 					onBack = { navigationRepository.goBack() },
 					onHome = { navigationRepository.reset(Destinations.home) },
-					onPlay = ::play,
-					onToggleFavorite = viewModel::toggleFavorite,
-					onTogglePlayed = viewModel::togglePlayed,
+					onPlay = { viewModel.state.value.playTarget?.let(::play) },
+					onPlayItem = ::play,
 					onOpenItem = ::openItem,
 					onSelectSort = viewModel::setSort,
 				),
 				posterUrl = viewModel::posterUrl,
+				thumbUrl = viewModel::thumbUrl,
+				personImageUrl = viewModel::personImageUrl,
 				modifier = Modifier.fillMaxSize(),
 			)
 		}
@@ -72,8 +72,7 @@ class CinemaDetailFragment : Fragment() {
 		navigationRepository.navigate(Destinations.itemDetails(item.id))
 	}
 
-	private fun play() {
-		val item = viewModel.state.value.item ?: return
+	private fun play(item: BaseItemDto) {
 		val position = item.userData?.playbackPositionTicks
 			?.takeIf { it > 0L }
 			?.let { (it / TICKS_PER_MILLISECOND).toInt() }

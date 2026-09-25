@@ -30,7 +30,7 @@ object CinemaColors {
 	val NavActive = Color(0x29D8EAFF)
 	val NavActiveText = Color(0xFFF0F7FF)
 	val Button = Color(0xE0323D4C)
-	val ButtonFocused = Color(0xE5E5F0FF)
+	val ButtonFocused = Color(0xE048586E)
 	val HeroBackground = Color(0xFF172330)
 	val CardPlaceholder = Color(0xFF24303E)
 	val Input = Color(0xFF202A38)
@@ -42,6 +42,7 @@ object CinemaColors {
 
 	val Tag = Color(0xB81A232F)
 	val TagBorder = Color(0x38E4EFFF)
+	val Star = Color(0xFFF5B82E)
 
 	/** Page background: `--cinema-page-bg` gradient stack flattened to a vertical gradient. */
 	val PageBackground = Brush.verticalGradient(
@@ -104,9 +105,9 @@ object CinemaDimens {
 	val RailWidthExpanded = 240.dp
 	val RailItemSize = 48.dp
 	val RailIconSize = 23.dp
-	val RailGap = 12.dp
+	val RailGap = 16.dp
 
-	val RowGap = 16.dp
+	val RowGap = 20.dp
 	val PosterCardWidth = 240.dp
 
 	/**
@@ -119,18 +120,18 @@ object CinemaDimens {
 	val RowCardWidth = 150.dp
 
 	/** Horizontal padding between the shell edge and its content. */
-	val PageGutter = 20.dp
+	val PageGutter = 32.dp
 
 	/** Vertical rhythm between the header, hero, rails and the grid. */
-	val SectionGap = 22.dp
+	val SectionGap = 32.dp
 	const val PosterAspect = 2f / 3f
 	const val WideAspect = 16f / 10f
 	const val HeroAspect = 2.35f
 	val HeroMinHeight = 450.dp
 
 	val GridMinCellWidth = 155.dp
-	val GridVerticalGap = 20.dp
-	val GridHorizontalGap = 12.dp
+	val GridVerticalGap = 28.dp
+	val GridHorizontalGap = 20.dp
 
 	/** Overscan safe padding for TV. */
 	val Overscan = 48.dp

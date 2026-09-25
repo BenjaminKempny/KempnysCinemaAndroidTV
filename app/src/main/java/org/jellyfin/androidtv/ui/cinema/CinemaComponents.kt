@@ -23,12 +23,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -100,8 +103,8 @@ fun CinemaTag(
 }
 
 /**
- * A5 — pill button. Background animates from `cinema_button` to the accent colour on
- * focus over 160 ms, combined with the global focus ring (§1.4).
+ * A5 — pill button. Background animates from `cinema_button` to a slightly lighter shade
+ * on focus over 160 ms (no outer focus ring).
  */
 @Composable
 fun CinemaButton(
@@ -117,24 +120,24 @@ fun CinemaButton(
 
 	val background by animateColorAsState(
 		targetValue = when {
-			focused -> CinemaColors.ButtonFocused
+			primary && focused -> CinemaColors.Accent.copy(alpha = 0.95f)
 			primary -> CinemaColors.Accent
+			focused -> CinemaColors.ButtonFocused
 			else -> CinemaColors.Button
 		},
 		animationSpec = CinemaMotion.buttonFocus(),
 		label = "cinemaButtonBackground",
 	)
-	val contentColor = if (focused || primary) CinemaColors.AccentText else CinemaColors.Text
+	val contentColor = if (primary) CinemaColors.AccentText else CinemaColors.Text
 
 	Row(
 		modifier = modifier
 			.height(CinemaDimens.ButtonHeight)
-			.cinemaFocusRing(focused, cornerRadius = CinemaDimens.ButtonHeight / 2)
 			.clip(CinemaDimens.PillShape)
 			.background(background)
 			.border(
 				width = 1.dp,
-				color = if (focused) Color.Transparent else CinemaColors.Border,
+				color = if (focused) CinemaColors.BorderStrong else CinemaColors.Border,
 				shape = CinemaDimens.PillShape,
 			)
 			.onFocusChanged { focused = it.isFocused }
@@ -183,8 +186,9 @@ fun CinemaIconButton(
 
 	val background by animateColorAsState(
 		targetValue = when {
-			focused -> CinemaColors.ButtonFocused
+			focused && active -> CinemaColors.Accent.copy(alpha = 0.95f)
 			active -> CinemaColors.Accent
+			focused -> CinemaColors.ButtonFocused
 			else -> CinemaColors.Button
 		},
 		animationSpec = CinemaMotion.buttonFocus(),
@@ -194,10 +198,9 @@ fun CinemaIconButton(
 	Box(
 		modifier = modifier
 			.size(size)
-			.cinemaFocusRing(focused, cornerRadius = size / 2)
 			.clip(CinemaDimens.PillShape)
 			.background(background)
-			.border(1.dp, if (focused) Color.Transparent else CinemaColors.Border, CinemaDimens.PillShape)
+			.border(1.dp, if (focused) CinemaColors.BorderStrong else CinemaColors.Border, CinemaDimens.PillShape)
 			.onFocusChanged { focused = it.isFocused }
 			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
 		contentAlignment = Alignment.Center,
@@ -205,7 +208,7 @@ fun CinemaIconButton(
 		Icon(
 			painter = icon,
 			contentDescription = contentDescription,
-			tint = if (focused || active) CinemaColors.AccentText else CinemaColors.Text,
+			tint = if (active) CinemaColors.AccentText else CinemaColors.Text,
 			modifier = Modifier.size(size * 0.44f),
 		)
 	}
@@ -228,6 +231,8 @@ fun CinemaTabRow(
 ) {
 	val density = LocalDensity.current
 	val tabWidths = remember(tabs.size) { mutableStateListOfZeros(tabs.size) }
+	val tabRequesters = remember(tabs.size) { List(tabs.size) { FocusRequester() } }
+	val currentSelectedIndex by rememberUpdatedState(selectedIndex)
 	var focusedIndex by remember { mutableStateOf<Int?>(null) }
 
 	val pillIndex = (focusedIndex ?: selectedIndex).coerceIn(0, (tabs.size - 1).coerceAtLeast(0))
@@ -260,6 +265,16 @@ fun CinemaTabRow(
 			// Tracking focus on the group avoids the flicker that per-tab enter/exit
 			// callbacks would cause while moving between two tabs.
 			.onFocusChanged { if (!it.hasFocus) focusedIndex = null }
+			// Entering the row with the D-Pad always lands on the active tab instead of
+			// the geometrically closest one (usually "All").
+			.focusProperties {
+				onEnter = {
+					// The requester is detached while the header is recycled by the
+					// LazyColumn; without the guard the focus search would bail out and
+					// fall through to the first focusable on the page (the hero).
+					runCatching { tabRequesters.getOrNull(currentSelectedIndex)?.requestFocus() }
+				}
+			}
 			.focusGroup(),
 	) {
 		// The sliding pill lives behind the labels.
@@ -282,7 +297,9 @@ fun CinemaTabRow(
 					focusedByRow = focusedIndex != null,
 					onFocused = { focusedIndex = index },
 					onClick = { onSelect(index) },
-					modifier = Modifier.onSizeChanged { tabWidths[index] = it.width },
+					modifier = Modifier
+						.focusRequester(tabRequesters[index])
+						.onSizeChanged { tabWidths[index] = it.width },
 				)
 			}
 		}

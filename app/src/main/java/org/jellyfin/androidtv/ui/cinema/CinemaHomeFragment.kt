@@ -21,10 +21,8 @@ import org.jellyfin.androidtv.auth.repository.ServerRepository
 import org.jellyfin.androidtv.auth.repository.SessionRepository
 import org.jellyfin.androidtv.data.repository.NotificationsRepository
 import org.jellyfin.androidtv.ui.base.JellyfinTheme
-import org.jellyfin.androidtv.ui.navigation.ActivityDestinations
 import org.jellyfin.androidtv.ui.navigation.Destinations
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
-import org.jellyfin.androidtv.ui.playback.MediaManager
 import org.jellyfin.androidtv.ui.playback.PlaybackLauncher
 import org.jellyfin.androidtv.ui.settings.compat.SettingsViewModel
 import org.koin.android.ext.android.inject
@@ -40,7 +38,6 @@ class CinemaHomeFragment : Fragment() {
 	private val settingsViewModel by activityViewModel<SettingsViewModel>()
 	private val navigationRepository by inject<NavigationRepository>()
 	private val playbackLauncher by inject<PlaybackLauncher>()
-	private val mediaManager by inject<MediaManager>()
 	private val sessionRepository by inject<SessionRepository>()
 	private val serverRepository by inject<ServerRepository>()
 	private val notificationRepository by inject<NotificationsRepository>()
@@ -99,19 +96,12 @@ class CinemaHomeFragment : Fragment() {
 		CinemaRailItem.Search -> navigationRepository.navigate(Destinations.search())
 		CinemaRailItem.Movies -> viewModel.setMediaType(CinemaMediaType.Movies)
 		CinemaRailItem.Shows -> viewModel.setMediaType(CinemaMediaType.Shows)
-		// The web profile page manages avatar and password; the closest equivalent on
-		// Android TV is the user switcher, which is what the upstream toolbar uses.
-		CinemaRailItem.Profile -> switchUser()
+		// The web profile page manages avatar and password; on Android TV the closest
+		// equivalent is the cinema styled account switcher.
+		CinemaRailItem.Profile -> navigationRepository.navigate(Destinations.profile)
 		CinemaRailItem.Settings -> settingsViewModel.show()
 	}
 
-	private fun switchUser() {
-		val activity = activity ?: return
-		mediaManager.clearAudioQueue()
-		sessionRepository.destroyCurrentSession()
-		activity.startActivity(ActivityDestinations.startup(activity))
-		activity.finishAfterTransition()
-	}
 
 	private fun play(item: org.jellyfin.sdk.model.api.BaseItemDto) = playById(item.id)
 

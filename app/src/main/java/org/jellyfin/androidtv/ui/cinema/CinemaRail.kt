@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,9 +78,8 @@ fun CinemaRail(
 
 	Box(
 		modifier = modifier
-			.width(CinemaDimens.RailWidth)
 			.fillMaxHeight()
-			.padding(vertical = 24.dp),
+			.padding(start = 24.dp, top = 24.dp, bottom = 24.dp),
 		contentAlignment = Alignment.CenterStart,
 	) {
 		Box(

@@ -21,7 +21,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +71,10 @@ fun CinemaHomeScreen(
 ) {
 	val listState = rememberLazyListState()
 	val heroFocusRequester = remember { FocusRequester() }
+	// The hero is recycled by the LazyColumn whenever it leaves the viewport. Without
+	// this guard it would request the focus again on every re-entry, yanking the user
+	// out of the catalog grid (and out of the tab row) back to the spotlight.
+	var heroFocusRequested by rememberSaveable { mutableStateOf(false) }
 	val tabs = listOf(
 		stringResource(R.string.cinema_tab_all),
 		stringResource(R.string.cinema_tab_collections),
@@ -89,7 +96,7 @@ fun CinemaHomeScreen(
 			CinemaShell(
 				modifier = Modifier
 					.fillMaxSize()
-					.padding(end = 24.dp, top = 24.dp, bottom = 24.dp),
+					.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 24.dp),
 			) {
 				LazyColumn(
 					state = listState,
@@ -133,6 +140,8 @@ fun CinemaHomeScreen(
 							posterUrl = posterUrl,
 							thumbUrl = thumbUrl,
 							heroFocusRequester = heroFocusRequester,
+							requestHeroFocus = !heroFocusRequested,
+							onHeroFocusRequested = { heroFocusRequested = true },
 						)
 
 						CinemaView.Collections -> collectionsView(state, actions, posterUrl)
@@ -208,6 +217,8 @@ private fun LazyListScope.allView(
 	posterUrl: (BaseItemDto) -> String?,
 	thumbUrl: (BaseItemDto) -> String?,
 	heroFocusRequester: FocusRequester,
+	requestHeroFocus: Boolean,
+	onHeroFocusRequested: () -> Unit,
 ) {
 	if (state.hero.isNotEmpty()) {
 		item(key = "hero") {
@@ -216,6 +227,8 @@ private fun LazyListScope.allView(
 				onPlay = actions.onPlayHeroItem,
 				onDetails = actions.onOpenHeroItem,
 				playFocusRequester = heroFocusRequester,
+				requestInitialFocus = requestHeroFocus,
+				onInitialFocusRequested = onHeroFocusRequested,
 			)
 		}
 	}
@@ -224,19 +237,19 @@ private fun LazyListScope.allView(
 		item(key = "continue-watching") {
 			CinemaPanel(Modifier.fillMaxWidth()) {
 				Column(
-					modifier = Modifier.padding(vertical = 18.dp),
-					verticalArrangement = Arrangement.spacedBy(14.dp),
+					modifier = Modifier.padding(vertical = 24.dp),
+					verticalArrangement = Arrangement.spacedBy(16.dp),
 				) {
 					CinemaSectionTitle(
 						text = stringResource(R.string.lbl_continue_watching),
-						modifier = Modifier.padding(horizontal = 18.dp),
+						modifier = Modifier.padding(horizontal = 24.dp),
 					)
 
 					LazyRow(
 						modifier = Modifier
 							.fillMaxWidth()
 							.focusRestorer(),
-						contentPadding = PaddingValues(horizontal = 18.dp),
+						contentPadding = PaddingValues(horizontal = 24.dp),
 						horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
 					) {
 						items(state.continueWatching, key = { it.id }) { item ->

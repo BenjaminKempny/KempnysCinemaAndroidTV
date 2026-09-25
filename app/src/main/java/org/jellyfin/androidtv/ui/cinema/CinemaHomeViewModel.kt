@@ -410,10 +410,14 @@ class CinemaHomeViewModel(
 	}
 
 	private fun BaseItemDto.toHeroItem(): CinemaHeroItem {
-		val tags = buildList {
-			addAll(genres.orEmpty().take(HERO_TAG_LIMIT))
-			productionYear?.let { add(it.toString()) }
-			officialRating?.let { add(it) }
+		val meta = buildList {
+			cinemaYearLabel?.let(::add)
+			// Series report the runtime of a single episode, which would be misleading here.
+			if (type != BaseItemKind.SERIES) runTimeTicks?.takeIf { it > 0L }?.let { add(formatCinemaRuntime(it)) }
+			communityRating?.let { add("★ %.1f".format(it)) }
+			if (type != BaseItemKind.SERIES) {
+				cinemaEndTime(runTimeTicks, userData?.playbackPositionTicks)?.let { add(it) }
+			}
 		}
 
 		return CinemaHeroItem(
@@ -421,7 +425,9 @@ class CinemaHomeViewModel(
 			title = name.orEmpty(),
 			overview = overview,
 			backdropUrl = heroBackdropUrl(this),
-			tags = tags,
+			tags = genres.orEmpty().take(HERO_TAG_LIMIT),
+			meta = meta,
+			officialRating = officialRating,
 			resumable = (userData?.playbackPositionTicks ?: 0L) > 0L,
 		)
 	}

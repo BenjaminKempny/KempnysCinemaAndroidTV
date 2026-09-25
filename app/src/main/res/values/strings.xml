@@ -718,9 +718,13 @@
     <string name="cinema_titles">Titles</string>
     <string name="cinema_search_hint">Type to search your library</string>
     <string name="cinema_back">Back</string>
-    <string name="cinema_similar">More like this</string>
     <string name="cinema_director">Director</string>
     <string name="cinema_writer">Writer</string>
     <string name="cinema_studios">Studios</string>
     <string name="cinema_audio">Audio</string>
+    <string name="cinema_ends_at">Ends at %1$s</string>
+    <string name="cinema_tags">Tags:</string>
+    <string name="cinema_profile_accounts">Accounts on this server</string>
+    <string name="cinema_profile_signed_in">Signed in as</string>
+    <string name="cinema_profile_requires_login">Password required</string>
 </resources>

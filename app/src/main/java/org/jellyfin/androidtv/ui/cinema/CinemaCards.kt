@@ -8,8 +8,10 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,12 +29,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.ui.base.Icon
@@ -54,6 +60,8 @@ fun CinemaPosterCard(
 	onLongClick: (() -> Unit)? = null,
 	width: Dp = CinemaDimens.PosterCardWidth,
 	progress: Float? = null,
+	/** Small counter bubble in the top end corner (e.g. episode count of a season). */
+	badge: String? = null,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
 	var focused by remember { mutableStateOf(false) }
@@ -64,19 +72,41 @@ fun CinemaPosterCard(
 			.cinemaFocusZoom(focused)
 			.onFocusChanged { focused = it.isFocused }
 			.cinemaClickable(interactionSource, onClick, onLongClick),
-		verticalArrangement = Arrangement.spacedBy(10.dp),
+		verticalArrangement = Arrangement.spacedBy(6.dp),
 	) {
 		Box(
 			modifier = Modifier
 				.fillMaxWidth()
 				.aspectRatio(CinemaDimens.PosterAspect)
-				.cinemaFocusGlow(focused, CinemaDimens.CardRadius)
 				.cinemaFocusRing(focused, CinemaDimens.CardRadius)
 				.clip(CinemaDimens.CardShape)
 				.background(CinemaColors.CardPlaceholder)
-				.border(1.dp, CinemaColors.Border, CinemaDimens.CardShape),
+				// Hidden while focused so the accent ring is the only outline — the two
+				// together read as a double border.
+				.border(1.dp, if (focused) Color.Transparent else CinemaColors.Border, CinemaDimens.CardShape),
 		) {
 			CardArtwork(imageUrl, title)
+
+			if (badge != null) {
+				Box(
+					modifier = Modifier
+						.align(Alignment.TopEnd)
+						.padding(8.dp)
+						.defaultMinSize(minWidth = 28.dp, minHeight = 28.dp)
+						.clip(CinemaDimens.PillShape)
+						.background(CinemaColors.Accent)
+						.padding(horizontal = 7.dp),
+					contentAlignment = Alignment.Center,
+				) {
+					Text(
+						text = badge,
+						color = CinemaColors.AccentText,
+						fontSize = CinemaDimens.MetaSize,
+						fontWeight = FontWeight.SemiBold,
+						maxLines = 1,
+					)
+				}
+			}
 		}
 
 		// The web moves the progress bar out of the overlay and into the normal flow for
@@ -136,11 +166,10 @@ fun CinemaWideCard(
 			modifier = Modifier
 				.fillMaxWidth()
 				.aspectRatio(CinemaDimens.WideAspect)
-				.cinemaFocusGlow(focused, CinemaDimens.CardRadius)
 				.cinemaFocusRing(focused, CinemaDimens.CardRadius)
 				.clip(CinemaDimens.CardShape)
 				.background(CinemaColors.CardPlaceholder)
-				.border(1.dp, CinemaColors.Border, CinemaDimens.CardShape),
+				.border(1.dp, if (focused) Color.Transparent else CinemaColors.Border, CinemaDimens.CardShape),
 		) {
 			CardArtwork(imageUrl, title)
 
@@ -264,3 +293,249 @@ private fun Modifier.cinemaClickable(
 		onClick = onClick,
 	)
 }
+
+/**
+ * Cast & crew card — circular portrait, name and role below. It is focusable so the row
+ * can be scrolled with the D-Pad.
+ */
+@Composable
+fun CinemaPersonCard(
+	name: String,
+	role: String?,
+	imageUrl: String?,
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+	width: Dp = CinemaDimens.RowCardWidth,
+) {
+	val interactionSource = remember { MutableInteractionSource() }
+	var focused by remember { mutableStateOf(false) }
+
+	Column(
+		modifier = modifier
+			.width(width)
+			.cinemaFocusZoom(focused)
+			.onFocusChanged { focused = it.isFocused }
+			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+		horizontalAlignment = Alignment.CenterHorizontally,
+		verticalArrangement = Arrangement.spacedBy(8.dp),
+	) {
+		Box(
+			modifier = Modifier
+				.fillMaxWidth()
+				.aspectRatio(1f)
+				.clip(CircleShape)
+				.background(CinemaColors.CardPlaceholder)
+				.border(
+					width = if (focused) 3.dp else 1.dp,
+					color = if (focused) CinemaColors.Focus else CinemaColors.Border,
+					shape = CircleShape,
+				),
+			contentAlignment = Alignment.Center,
+		) {
+			if (imageUrl != null) {
+				AsyncImage(
+					model = imageUrl,
+					contentDescription = name,
+					contentScale = ContentScale.Crop,
+					modifier = Modifier.fillMaxSize(),
+				)
+			} else {
+				Icon(
+					painter = painterResource(R.drawable.ic_user),
+					contentDescription = null,
+					tint = CinemaColors.Muted,
+					modifier = Modifier.size(42.dp),
+				)
+			}
+		}
+
+		Text(
+			text = name,
+			color = CinemaColors.Text,
+			fontSize = CinemaDimens.CardSubtitleSize,
+			fontWeight = FontWeight.SemiBold,
+			maxLines = 1,
+			overflow = TextOverflow.Ellipsis,
+			textAlign = TextAlign.Center,
+		)
+
+		if (!role.isNullOrBlank()) {
+			Text(
+				text = role,
+				color = CinemaColors.Muted,
+				fontSize = CinemaDimens.MetaSize,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+				textAlign = TextAlign.Center,
+			)
+		}
+	}
+}
+
+/**
+ * Episode list entry of the season page — thumbnail with play overlay on the start side,
+ * `1. Title`, meta line and overview on the end side. The whole row is a single focus
+ * target that starts playback.
+ */
+@Composable
+fun CinemaEpisodeRow(
+	title: String,
+	meta: List<String>,
+	rating: Float?,
+	overview: String?,
+	imageUrl: String?,
+	progress: Float?,
+	played: Boolean,
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+	onLongClick: (() -> Unit)? = null,
+) {
+	val interactionSource = remember { MutableInteractionSource() }
+	var focused by remember { mutableStateOf(false) }
+
+	Row(
+		modifier = modifier
+			.fillMaxWidth()
+			.clip(CinemaDimens.PanelShape)
+			.background(if (focused) CinemaColors.ButtonFocused else CinemaColors.Surface)
+			.border(
+				width = if (focused) 2.dp else 1.dp,
+				color = if (focused) CinemaColors.Focus else CinemaColors.Border,
+				shape = CinemaDimens.PanelShape,
+			)
+			.onFocusChanged { focused = it.isFocused }
+			.cinemaClickable(interactionSource, onClick, onLongClick)
+			.padding(16.dp),
+		horizontalArrangement = Arrangement.spacedBy(20.dp),
+		verticalAlignment = Alignment.CenterVertically,
+	) {
+		Column(
+			modifier = Modifier.width(EPISODE_THUMB_WIDTH),
+			verticalArrangement = Arrangement.spacedBy(6.dp),
+		) {
+			Box(
+				modifier = Modifier
+					.fillMaxWidth()
+					.aspectRatio(16f / 9f)
+					.clip(CinemaDimens.CardShape)
+					.background(CinemaColors.CardPlaceholder),
+				contentAlignment = Alignment.Center,
+			) {
+				CardArtwork(imageUrl, title)
+
+				Box(
+					modifier = Modifier
+						.size(CinemaDimens.PlayBadgeSize + 8.dp)
+						.clip(CircleShape)
+						.background(if (focused) CinemaColors.Accent else CinemaColors.Button),
+					contentAlignment = Alignment.Center,
+				) {
+					Icon(
+						painter = painterResource(R.drawable.ic_play),
+						contentDescription = null,
+						tint = if (focused) CinemaColors.AccentText else CinemaColors.Text,
+						modifier = Modifier.size(20.dp),
+					)
+				}
+
+				if (played) {
+					Box(
+						modifier = Modifier
+							.align(Alignment.TopEnd)
+							.padding(6.dp)
+							.size(26.dp)
+							.clip(CircleShape)
+							.background(CinemaColors.Accent),
+						contentAlignment = Alignment.Center,
+					) {
+						Icon(
+							painter = painterResource(R.drawable.ic_check),
+							contentDescription = null,
+							tint = CinemaColors.AccentText,
+							modifier = Modifier.size(16.dp),
+						)
+					}
+				}
+			}
+
+			if (progress != null) CinemaProgressBar(progress, Modifier.fillMaxWidth())
+		}
+
+		Column(
+			modifier = Modifier.weight(1f),
+			verticalArrangement = Arrangement.spacedBy(6.dp),
+		) {
+			Text(
+				text = title,
+				color = CinemaColors.Text,
+				fontSize = CinemaDimens.CardTitleSize,
+				fontWeight = FontWeight.SemiBold,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+			)
+
+			CinemaMetaLine(parts = meta, rating = rating)
+
+			if (!overview.isNullOrBlank()) {
+				Text(
+					text = overview,
+					color = CinemaColors.TextSoft,
+					fontSize = CinemaDimens.MetaSize,
+					lineHeight = 21.sp,
+					maxLines = 3,
+					overflow = TextOverflow.Ellipsis,
+				)
+			}
+		}
+	}
+}
+
+/** `45m  ★ 7.0  Endet um 12:45` — plain meta parts with the rating rendered as a star. */
+@Composable
+fun CinemaMetaLine(
+	parts: List<String>,
+	rating: Float?,
+	modifier: Modifier = Modifier,
+	leading: (@Composable () -> Unit)? = null,
+	trailing: List<String> = emptyList(),
+) {
+	if (parts.isEmpty() && rating == null && leading == null && trailing.isEmpty()) return
+
+	Row(
+		modifier = modifier,
+		horizontalArrangement = Arrangement.spacedBy(14.dp),
+		verticalAlignment = Alignment.CenterVertically,
+	) {
+		leading?.invoke()
+
+		parts.forEach { MetaText(it) }
+
+		if (rating != null) {
+			Row(
+				horizontalArrangement = Arrangement.spacedBy(4.dp),
+				verticalAlignment = Alignment.CenterVertically,
+			) {
+				Text(
+					text = "★",
+					color = CinemaColors.Star,
+					fontSize = CinemaDimens.MetaSize,
+					maxLines = 1,
+				)
+				MetaText("%.1f".format(rating))
+			}
+		}
+
+		trailing.forEach { MetaText(it) }
+	}
+}
+
+@Composable
+private fun MetaText(text: String) = Text(
+	text = text,
+	color = CinemaColors.TextSoft,
+	fontSize = CinemaDimens.MetaSize,
+	maxLines = 1,
+)
+
+private val EPISODE_THUMB_WIDTH = 220.dp
+

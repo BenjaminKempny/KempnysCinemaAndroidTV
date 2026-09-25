@@ -20,36 +20,19 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * A3 — Apple-TV style focus zoom. `scale(1.05)` over `350ms` with an easeOutQuad curve.
- * This is the core focus affordance of the cinema UI.
- *
- * Callers must set `clipToPadding = false` on the surrounding list, otherwise the scaled
- * card is clipped by the row bounds.
+ * A3 — the web scales the focused card by `1.05`. On TV that reads as the whole row
+ * wobbling while moving through it, so the zoom is disabled: the focus ring alone marks
+ * the selection. Kept as a no-op modifier so the call sites stay untouched.
  */
+@Suppress("UnusedParameter")
 fun Modifier.cinemaFocusZoom(
 	focused: Boolean,
 	scale: Float = CinemaMotion.FocusZoomScale,
-): Modifier = composed {
-	val reducedMotion = rememberReducedMotion()
-	val target = if (focused) scale else 1f
-	val animated by androidx.compose.animation.core.animateFloatAsState(
-		targetValue = target,
-		animationSpec = if (reducedMotion) tween(0) else CinemaMotion.focusZoom(),
-		label = "cinemaFocusZoom",
-	)
-
-	graphicsLayer {
-		scaleX = animated
-		scaleY = animated
-		// Parallel elevation lift, matching the web drop-shadow on focus.
-		shadowElevation = (animated - 1f) * 160f
-	}
-}
+): Modifier = this
 
 /**
  * A2 — soft focus glow used in the TV layout instead of the hover translation
@@ -81,9 +64,11 @@ fun Modifier.cinemaFocusGlow(
 }
 
 /**
- * §1.4 — the global D-Pad focus ring:
- * `outline: 3px solid #d4e8ff` with `3px` offset, a `6px` dark separator ring and a
- * `24px` glow. Drawn on top of the content so it survives the [cinemaFocusZoom] scale.
+ * §1.4 — the D-Pad focus ring: a single `3px` accent outline with `3px` offset, drawn on
+ * top of the content.
+ *
+ * The web additionally draws a dark separator ring around it. On TV that reads as a
+ * double border on the poster cards, so only the accent outline remains.
  */
 fun Modifier.cinemaFocusRing(
 	focused: Boolean,
@@ -102,18 +87,6 @@ fun Modifier.cinemaFocusRing(
 
 		val offset = 3.dp.toPx()
 		val outline = 3.dp.toPx()
-		val separator = 6.dp.toPx()
-
-		// Dark separator sits underneath the accent outline and gives it contrast on
-		// bright artwork.
-		val separatorInset = -(offset + outline + separator / 2f)
-		drawRoundRect(
-			color = CinemaColors.FocusSeparator.copy(alpha = CinemaColors.FocusSeparator.alpha * alpha),
-			topLeft = Offset(separatorInset, separatorInset),
-			size = Size(size.width - separatorInset * 2f, size.height - separatorInset * 2f),
-			cornerRadius = CornerRadius(cornerRadius.toPx() - separatorInset),
-			style = Stroke(width = separator),
-		)
 
 		val outlineInset = -(offset + outline / 2f)
 		drawRoundRect(
@@ -126,13 +99,11 @@ fun Modifier.cinemaFocusRing(
 	}
 }
 
-/** Convenience: the complete cinema focus treatment (zoom + glow + ring). */
+/** Convenience: the complete cinema focus treatment (a single accent ring). */
 fun Modifier.cinemaFocusable(
 	focused: Boolean,
 	cornerRadius: Dp = CinemaDimens.CardRadius,
 ): Modifier = this
-	.cinemaFocusZoom(focused)
-	.cinemaFocusGlow(focused, cornerRadius)
 	.cinemaFocusRing(focused, cornerRadius)
 
 /** A7 — skeleton shimmer, `2s` alternating ease-in-out. */
