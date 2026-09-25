@@ -727,4 +727,6 @@
     <string name="cinema_profile_accounts">Accounts on this server</string>
     <string name="cinema_profile_signed_in">Signed in as</string>
     <string name="cinema_profile_requires_login">Password required</string>
+    <string name="pref_cinema_light_theme">Light cinema theme</string>
+    <string name="pref_cinema_light_theme_description">Use the light appearance for the home, detail, search and profile screens</string>
 </resources>

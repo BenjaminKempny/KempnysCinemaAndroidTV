@@ -191,7 +191,7 @@ fun CinemaWideCard(
 			) {
 				Text(
 					text = title,
-					color = CinemaColors.Text,
+					color = CinemaColors.OnMedia,
 					fontSize = CinemaDimens.CardTitleSize,
 					fontWeight = FontWeight.SemiBold,
 					maxLines = 1,
@@ -200,7 +200,7 @@ fun CinemaWideCard(
 				if (subtitle != null) {
 					Text(
 						text = subtitle,
-						color = CinemaColors.Muted,
+						color = CinemaColors.OnMediaMuted,
 						fontSize = CinemaDimens.CardSubtitleSize,
 						maxLines = 1,
 						overflow = TextOverflow.Ellipsis,
@@ -498,8 +498,12 @@ fun CinemaMetaLine(
 	modifier: Modifier = Modifier,
 	leading: (@Composable () -> Unit)? = null,
 	trailing: List<String> = emptyList(),
+	/** Set when the line is rendered on top of artwork so it stays light in both themes. */
+	onMedia: Boolean = false,
 ) {
 	if (parts.isEmpty() && rating == null && leading == null && trailing.isEmpty()) return
+
+	val textColor = if (onMedia) CinemaColors.OnMediaSoft else CinemaColors.TextSoft
 
 	Row(
 		modifier = modifier,
@@ -508,7 +512,7 @@ fun CinemaMetaLine(
 	) {
 		leading?.invoke()
 
-		parts.forEach { MetaText(it) }
+		parts.forEach { MetaText(it, textColor) }
 
 		if (rating != null) {
 			Row(
@@ -517,22 +521,25 @@ fun CinemaMetaLine(
 			) {
 				Text(
 					text = "★",
-					color = CinemaColors.Star,
+					color = if (onMedia) CinemaDarkPalette.star else CinemaColors.Star,
 					fontSize = CinemaDimens.MetaSize,
 					maxLines = 1,
 				)
-				MetaText("%.1f".format(rating))
+				MetaText("%.1f".format(rating), textColor)
 			}
 		}
 
-		trailing.forEach { MetaText(it) }
+		trailing.forEach { MetaText(it, textColor) }
 	}
 }
 
 @Composable
-private fun MetaText(text: String) = Text(
+private fun MetaText(
+	text: String,
+	color: Color = CinemaColors.TextSoft,
+) = Text(
 	text = text,
-	color = CinemaColors.TextSoft,
+	color = color,
 	fontSize = CinemaDimens.MetaSize,
 	maxLines = 1,
 )

@@ -1,5 +1,6 @@
 package org.jellyfin.androidtv.ui.cinema
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +37,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.jellyfin.androidtv.R
-import org.jellyfin.androidtv.ui.base.Icon
 import org.jellyfin.androidtv.ui.base.Text
 import org.jellyfin.sdk.model.api.BaseItemDto
 
@@ -183,8 +183,8 @@ private fun CinemaHeader(
 ) {
 	Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
 		Box(Modifier.fillMaxWidth()) {
-			Icon(
-				painter = painterResource(R.drawable.app_logo),
+			Image(
+				painter = painterResource(R.drawable.kempnys_logo),
 				contentDescription = null,
 				modifier = Modifier
 					.align(Alignment.CenterStart)

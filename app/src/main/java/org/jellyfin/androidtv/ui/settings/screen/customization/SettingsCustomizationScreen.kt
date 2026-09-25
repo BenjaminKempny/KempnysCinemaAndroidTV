@@ -13,6 +13,7 @@ import org.jellyfin.androidtv.ui.base.Text
 import org.jellyfin.androidtv.ui.base.form.Checkbox
 import org.jellyfin.androidtv.ui.base.list.ListButton
 import org.jellyfin.androidtv.ui.base.list.ListSection
+import org.jellyfin.androidtv.ui.cinema.CinemaThemeState
 import org.jellyfin.androidtv.ui.navigation.LocalRouter
 import org.jellyfin.androidtv.ui.navigation.focus.focusKey
 import org.jellyfin.androidtv.ui.settings.Routes
@@ -41,6 +42,22 @@ fun SettingsCustomizationScreen() {
 				captionContent = { Text(stringResource(appTheme.nameRes)) },
 				onClick = { router.push(Routes.CUSTOMIZATION_THEME) },
 				modifier = Modifier.focusKey(Routes.CUSTOMIZATION_THEME)
+			)
+		}
+
+		item {
+			var cinemaLightThemeEnabled by rememberPreference(userPreferences, UserPreferences.cinemaLightThemeEnabled)
+
+			ListButton(
+				headingContent = { Text(stringResource(R.string.pref_cinema_light_theme)) },
+				trailingContent = { Checkbox(checked = cinemaLightThemeEnabled) },
+				captionContent = { Text(stringResource(R.string.pref_cinema_light_theme_description)) },
+				onClick = {
+					cinemaLightThemeEnabled = !cinemaLightThemeEnabled
+					// Apply immediately so the cinema screens behind the settings dialog update.
+					CinemaThemeState.isLight = cinemaLightThemeEnabled
+				},
+				modifier = Modifier.focusKey("cinema_light_theme")
 			)
 		}
 

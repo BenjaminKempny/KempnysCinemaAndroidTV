@@ -46,6 +46,11 @@ class UserPreferences(context: Context) : SharedPreferenceStore(
 		var appTheme = enumPreference("app_theme", AppTheme.DARK)
 
 		/**
+		 * Use the light appearance for the cinema interface (home, detail, search and profile).
+		 */
+		var cinemaLightThemeEnabled = booleanPreference("cinema_light_theme", false)
+
+		/**
 		 * Behavior of app background while browsing
 		 */
 		var backdropBehavior = enumPreference("backdrop_behavior", BackdropBehavior.BACKDROP_WITH_BLUR)

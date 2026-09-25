@@ -407,7 +407,7 @@ private fun CinemaDetailHero(
 			) {
 				Text(
 					text = title,
-					color = CinemaColors.Text,
+					color = CinemaColors.OnMedia,
 					fontSize = DETAIL_TITLE_SIZE,
 					lineHeight = DETAIL_TITLE_LINE_HEIGHT,
 					fontWeight = FontWeight.Bold,
@@ -418,7 +418,7 @@ private fun CinemaDetailHero(
 				if (!subtitle.isNullOrBlank()) {
 					Text(
 						text = subtitle,
-						color = CinemaColors.Text,
+						color = CinemaColors.OnMedia,
 						fontSize = CinemaDimens.SectionTitleSize,
 						fontWeight = FontWeight.SemiBold,
 						maxLines = 1,
@@ -470,6 +470,7 @@ private fun CinemaDetailMeta(item: BaseItemDto) {
 			null
 		},
 		trailing = trailing,
+		onMedia = true,
 	)
 }
 

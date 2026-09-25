@@ -185,7 +185,7 @@ fun CinemaHero(
 		) {
 			Text(
 				text = stringResource(R.string.cinema_spotlight).uppercase(),
-				color = CinemaColors.Muted,
+				color = CinemaColors.OnMediaMuted,
 				fontSize = CinemaDimens.EyebrowSize,
 				fontWeight = FontWeight.SemiBold,
 				letterSpacing = 0.22.em,
@@ -205,7 +205,7 @@ fun CinemaHero(
 
 			Text(
 				text = item.title,
-				color = CinemaColors.Text,
+				color = CinemaColors.OnMedia,
 				fontSize = titleSize,
 				lineHeight = titleSize * TITLE_LINE_HEIGHT_FACTOR,
 				fontWeight = FontWeight.Bold,
@@ -218,7 +218,7 @@ fun CinemaHero(
 			if (item.meta.isNotEmpty()) {
 				Text(
 					text = item.meta.joinToString("  ·  "),
-					color = CinemaColors.TextSoft,
+					color = CinemaColors.OnMediaSoft,
 					fontSize = CinemaDimens.MetaSize,
 					maxLines = 1,
 					overflow = TextOverflow.Ellipsis,

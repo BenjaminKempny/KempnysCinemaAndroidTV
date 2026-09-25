@@ -30,4 +30,7 @@
 	<color name="cinema_focus_ring">#40A9CFFF</color>
 	<color name="cinema_focus_separator">#CC0A1423</color>
 	<color name="cinema_focus_glow">#80A9CFFF</color>
+
+	<!-- Brand background behind the adaptive launcher icon and the TV banner. -->
+	<color name="app_icon_background_color">#FF0A0D12</color>
 </resources>

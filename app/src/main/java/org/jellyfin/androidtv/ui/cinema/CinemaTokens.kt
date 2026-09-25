@@ -8,77 +8,69 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Colour tokens ported from the web dark token set (`_cinemaTokens.scss`).
- * Values mirror `res/values/cinema_colors.xml` so views and Compose stay in sync.
+ * Colour tokens ported from the web token set (`_cinemaTokens.scss`).
+ *
+ * Every token resolves against the palette that is currently active
+ * ([CinemaThemeState.palette]), so switching between the dark and light appearance only
+ * requires swapping that palette — all call sites keep working and recompose automatically
+ * because the palette is held in a snapshot state.
  */
-@Immutable
 object CinemaColors {
-	val PageBase = Color(0xFF080C12)
-	val PageGradientTop = Color(0xFF243142)
-	val PageGradientMid = Color(0xFF111821)
-	val ShellTop = Color(0xEB28313E)
-	val ShellBottom = Color(0xF50E131B)
-	val Border = Color(0x24E5F0FF)
-	val BorderStrong = Color(0x38E5F0FF)
-	val Text = Color(0xFFF6F8FC)
-	val TextSoft = Color(0xFFD2DDEA)
-	val Muted = Color(0xFFB6C0CD)
-	val Accent = Color(0xFFE1EDFA)
-	val AccentText = Color(0xFF142232)
-	val Rail = Color(0xFF1A222E)
-	val RailBlur = Color(0xB31C2531)
-	val NavActive = Color(0x29D8EAFF)
-	val NavActiveText = Color(0xFFF0F7FF)
-	val Button = Color(0xE0323D4C)
-	val ButtonFocused = Color(0xE048586E)
-	val HeroBackground = Color(0xFF172330)
-	val CardPlaceholder = Color(0xFF24303E)
-	val Input = Color(0xFF202A38)
-	val Surface = Color(0xFF1B2532)
-	val Focus = Color(0xFFD4E8FF)
-	val FocusRing = Color(0x40A9CFFF)
-	val FocusSeparator = Color(0xCC0A1423)
-	val FocusGlow = Color(0x80A9CFFF)
+	private inline val palette: CinemaPalette get() = CinemaThemeState.palette
 
-	val Tag = Color(0xB81A232F)
-	val TagBorder = Color(0x38E4EFFF)
-	val Star = Color(0xFFF5B82E)
+	val PageBase: Color get() = palette.pageBase
+	val PageGradientTop: Color get() = palette.pageGradientTop
+	val PageGradientMid: Color get() = palette.pageGradientMid
+	val ShellTop: Color get() = palette.shellTop
+	val ShellBottom: Color get() = palette.shellBottom
+	val Border: Color get() = palette.border
+	val BorderStrong: Color get() = palette.borderStrong
+	val Text: Color get() = palette.text
+	val TextSoft: Color get() = palette.textSoft
+	val Muted: Color get() = palette.muted
+	val Accent: Color get() = palette.accent
+	val AccentText: Color get() = palette.accentText
+	val Rail: Color get() = palette.rail
+	val RailBlur: Color get() = palette.railBlur
+	val NavActive: Color get() = palette.navActive
+	val NavActiveText: Color get() = palette.navActiveText
+	val Button: Color get() = palette.button
+	val ButtonFocused: Color get() = palette.buttonFocused
+	val HeroBackground: Color get() = palette.heroBackground
+	val CardPlaceholder: Color get() = palette.cardPlaceholder
+	val Input: Color get() = palette.input
+	val Surface: Color get() = palette.surface
+	val Focus: Color get() = palette.focus
+	val FocusRing: Color get() = palette.focusRing
+	val FocusSeparator: Color get() = palette.focusSeparator
+	val FocusGlow: Color get() = palette.focusGlow
+
+	val Tag: Color get() = palette.tag
+	val TagBorder: Color get() = palette.tagBorder
+	val Star: Color get() = palette.star
+
+	/** Text rendered on top of artwork (hero, wide cards). Always light, the scrim stays dark. */
+	val OnMedia: Color get() = palette.onMedia
+	val OnMediaSoft: Color get() = palette.onMediaSoft
+	val OnMediaMuted: Color get() = palette.onMediaMuted
 
 	/** Page background: `--cinema-page-bg` gradient stack flattened to a vertical gradient. */
-	val PageBackground = Brush.verticalGradient(
-		0f to PageGradientTop,
-		0.55f to PageGradientMid,
-		1f to PageBase,
-	)
+	val PageBackground: Brush get() = palette.pageBackground
 
 	/** `.cinemaShell` background gradient. */
-	val ShellBackground = Brush.verticalGradient(listOf(ShellTop, ShellBottom))
+	val ShellBackground: Brush get() = palette.shellBackground
 
 	/** Hero scrim layer 1 — horizontal, start -> end (`cinema.scss:318`). */
-	val HeroScrimHorizontal = Brush.horizontalGradient(
-		0f to Color(0xD9040A12),
-		0.6f to Color(0x52040A12),
-		1f to Color(0x14040A12),
-	)
+	val HeroScrimHorizontal: Brush get() = palette.heroScrimHorizontal
 
 	/** Hero scrim layer 2 — vertical, bottom -> top, transparent at 80%. */
-	val HeroScrimVertical = Brush.verticalGradient(
-		0f to Color.Transparent,
-		0.2f to Color.Transparent,
-		1f to Color(0xE00B0B13),
-	)
+	val HeroScrimVertical: Brush get() = palette.heroScrimVertical
 
 	/** Wide card scrim (`cinema.scss:578`) — applied to the bottom 66% of the card. */
-	val WideCardScrim = Brush.verticalGradient(
-		listOf(Color.Transparent, Color(0xE6030910)),
-	)
+	val WideCardScrim: Brush get() = palette.wideCardScrim
 
 	/** Skeleton shimmer gradient (`cinema.scss:762`). */
-	val ShimmerColors = listOf(
-		Color(0xFF1C2735),
-		Color(0xFF2B394A),
-		Color(0xFF1C2735),
-	)
+	val ShimmerColors: List<Color> get() = palette.shimmerColors
 }
 
 /**

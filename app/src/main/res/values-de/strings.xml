@@ -666,4 +666,6 @@
     <string name="preference_enable_ass_description">Experimentelles Feature, könnte nicht zuverlässig arbeiten</string>
     <string name="cinema_ends_at">Endet um %1$s</string>
     <string name="cinema_tags">Markierungen:</string>
+    <string name="pref_cinema_light_theme">Helles Cinema-Design</string>
+    <string name="pref_cinema_light_theme_description">Helle Darstellung für Startseite, Detailansicht, Suche und Profil verwenden</string>
 </resources>

@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.preference.UserPreferences
 import org.jellyfin.androidtv.preference.constant.AppTheme
+import org.jellyfin.androidtv.ui.cinema.CinemaThemeState
 import org.koin.android.ext.android.inject
 import timber.log.Timber
 
@@ -35,6 +36,10 @@ fun FragmentActivity.applyTheme() {
 	val viewModel by viewModels<ThemeViewModel>()
 	val userPreferences by inject<UserPreferences>()
 	val theme = userPreferences[UserPreferences.appTheme]
+
+	// Restore the cinema appearance. The cinema screens read this from a snapshot state so it
+	// must be in sync with the preference before the first composition happens.
+	CinemaThemeState.isLight = userPreferences[UserPreferences.cinemaLightThemeEnabled]
 
 	if (viewModel.theme != theme) {
 		if (viewModel.theme != null) {
