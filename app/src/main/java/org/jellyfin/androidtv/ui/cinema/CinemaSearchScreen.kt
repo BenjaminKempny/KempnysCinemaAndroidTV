@@ -57,7 +57,7 @@ fun CinemaSearchScreen(
 	onQueryChange: (String) -> Unit,
 	onQuerySubmit: () -> Unit,
 	onOpenItem: (BaseItemDto) -> Unit,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
 	modifier: Modifier = Modifier,
 ) {
 	val inputFocusRequester = remember { FocusRequester() }

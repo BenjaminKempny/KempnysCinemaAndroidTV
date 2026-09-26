@@ -16,7 +16,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
  */
 fun LazyListScope.cinemaGrid(
 	items: List<BaseItemDto>,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
 	onOpenItem: (BaseItemDto) -> Unit,
 	keyPrefix: String,
 	onItemMenu: ((BaseItemDto) -> Unit)? = null,

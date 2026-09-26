@@ -29,10 +29,14 @@ class CinemaDetailFragment : Fragment() {
 	private val itemId by lazy {
 		requireNotNull(requireArguments().getString(ARGUMENT_ITEM_ID)).let(UUID::fromString)
 	}
+	private val mediaType by lazy {
+		val value = arguments?.getString(ARGUMENT_MEDIA_TYPE)
+		CinemaMediaType.entries.firstOrNull { it.name == value }
+	}
 
 	override fun onCreate(savedInstanceState: Bundle?) {
 		super.onCreate(savedInstanceState)
-		viewModel.load(itemId)
+		viewModel.load(itemId, mediaType)
 	}
 
 	override fun onCreateView(
@@ -69,7 +73,7 @@ class CinemaDetailFragment : Fragment() {
 	}
 
 	private fun openItem(item: BaseItemDto) {
-		navigationRepository.navigate(Destinations.itemDetails(item.id))
+		navigationRepository.navigate(Destinations.itemDetails(item.id, mediaType))
 	}
 
 	private fun play(item: BaseItemDto) {
@@ -86,6 +90,7 @@ class CinemaDetailFragment : Fragment() {
 
 	companion object {
 		const val ARGUMENT_ITEM_ID = "item_id"
+		const val ARGUMENT_MEDIA_TYPE = "media_type"
 		private const val TICKS_PER_MILLISECOND = 10_000L
 	}
 }

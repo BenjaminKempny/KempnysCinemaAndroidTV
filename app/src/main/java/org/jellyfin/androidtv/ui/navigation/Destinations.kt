@@ -12,6 +12,7 @@ import org.jellyfin.androidtv.ui.browsing.CollectionFragment
 import org.jellyfin.androidtv.ui.browsing.GenericFolderFragment
 import org.jellyfin.androidtv.ui.browsing.SuggestedMoviesFragment
 import org.jellyfin.androidtv.ui.cinema.CinemaDetailFragment
+import org.jellyfin.androidtv.ui.cinema.CinemaMediaType
 import org.jellyfin.androidtv.ui.cinema.CinemaSearchFragment
 import org.jellyfin.androidtv.ui.cinema.CinemaHomeFragment
 import org.jellyfin.androidtv.ui.cinema.CinemaProfileFragment
@@ -85,8 +86,10 @@ object Destinations {
 		}
 
 	// Item details
-	fun itemDetails(item: UUID) = fragmentDestination<CinemaDetailFragment> {
+	@JvmOverloads
+	fun itemDetails(item: UUID, mediaType: CinemaMediaType? = null) = fragmentDestination<CinemaDetailFragment> {
 		putString(CinemaDetailFragment.ARGUMENT_ITEM_ID, item.toString())
+		putString(CinemaDetailFragment.ARGUMENT_MEDIA_TYPE, mediaType?.name)
 	}
 
 	// TODO only pass item id instead of complete JSON to browsing destinations

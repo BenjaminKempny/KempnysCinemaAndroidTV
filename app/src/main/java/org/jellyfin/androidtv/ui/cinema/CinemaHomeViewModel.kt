@@ -88,13 +88,14 @@ class CinemaHomeViewModel(
 
 	fun setMediaType(mediaType: CinemaMediaType) {
 		if (_state.value.mediaType == mediaType) return
-		_state.update { it.copy(mediaType = mediaType) }
+		// Never show the previous media type's catalog or collections under the new heading.
+		_state.update { CinemaHomeState(mediaType = mediaType, view = it.view, sort = it.sort) }
 		load()
 	}
 
 	fun setView(view: CinemaView) {
 		if (_state.value.view == view) return
-		_state.update { it.copy(view = view) }
+		_state.update { CinemaHomeState(mediaType = it.mediaType, view = view, sort = it.sort) }
 		load()
 	}
 
@@ -117,8 +118,12 @@ class CinemaHomeViewModel(
 
 		viewModelScope.launch(Dispatchers.IO) {
 			try {
-				val resume = loadContinueWatching(snapshot.libraryId)
-				_state.update { it.copy(continueWatching = resume) }
+				val resume = loadContinueWatching(snapshot.libraryId, snapshot.mediaType)
+				_state.update {
+					if (it.mediaType == snapshot.mediaType && it.view == CinemaView.All && it.libraryId == snapshot.libraryId) {
+						it.copy(continueWatching = resume)
+					} else it
+				}
 			} catch (error: ApiClientException) {
 				Timber.w(error, "Failed to refresh continue watching")
 			}
@@ -142,7 +147,7 @@ class CinemaHomeViewModel(
 				when (snapshot.view) {
 					CinemaView.All -> {
 						val hero = loadHero(libraryId, snapshot.mediaType)
-						val resume = loadContinueWatching(libraryId)
+						val resume = loadContinueWatching(libraryId, snapshot.mediaType)
 						val page = loadCatalogPage(libraryId, snapshot, startIndex = 0)
 						ensureActive()
 
@@ -202,15 +207,17 @@ class CinemaHomeViewModel(
 	/** Infinite scroll — appends the next catalog page (web: `InfiniteScroll.tsx`). */
 	fun loadNextCatalogPage() {
 		val snapshot = _state.value
-		if (snapshot.loading || loadJob?.isActive == true) return
+		if (snapshot.loading || snapshot.view != CinemaView.All) return
 		if (snapshot.catalogLoadingMore || !snapshot.catalogHasMore) return
-		if (pageJob?.isActive == true) return
+		// State is published before the coroutine finishes. Checking Job.isActive here
+		// can swallow the only load-more notification after a short first page.
 
 		_state.update { it.copy(catalogLoadingMore = true) }
 		pageJob = viewModelScope.launch(Dispatchers.IO) {
 			try {
 				val startIndex = snapshot.catalog.size
 				val page = loadCatalogPage(snapshot.libraryId, snapshot, startIndex = startIndex)
+				ensureActive()
 				_state.update { current ->
 					// A full reload may have replaced the catalog while this page was in
 					// flight — appending then would corrupt the order, so drop the result.
@@ -238,7 +245,10 @@ class CinemaHomeViewModel(
 
 	private suspend fun resolveLibraryId(mediaType: CinemaMediaType): UUID? = try {
 		userViewsRepository.views.first()
-			.firstOrNull { it.collectionType == mediaType.collectionType }
+			.filter { it.collectionType == mediaType.collectionType || it.collectionType == null }
+			// With multiple matching (or mixed) libraries, query the user's entire
+			// accessible catalog, filtered by item type, rather than just the first library.
+			.singleOrNull()
 			?.id
 	} catch (error: ApiClientException) {
 		Timber.w(error, "Failed to resolve library id")
@@ -249,6 +259,7 @@ class CinemaHomeViewModel(
 		val result by api.itemsApi.getItems(
 			parentId = libraryId,
 			includeItemTypes = setOf(mediaType.itemKind),
+			collapseBoxSetItems = false,
 			recursive = true,
 			sortBy = setOf(ItemSortBy.RANDOM),
 			fields = ItemRepository.browseFields,
@@ -260,9 +271,10 @@ class CinemaHomeViewModel(
 		return result.items.map { item -> item.toHeroItem() }
 	}
 
-	private suspend fun loadContinueWatching(libraryId: UUID?): List<BaseItemDto> {
+	private suspend fun loadContinueWatching(libraryId: UUID?, mediaType: CinemaMediaType): List<BaseItemDto> {
 		val result by api.itemsApi.getResumeItems(
 			parentId = libraryId,
+			includeItemTypes = setOf(if (mediaType == CinemaMediaType.Movies) BaseItemKind.MOVIE else BaseItemKind.EPISODE),
 			limit = RESUME_LIMIT,
 			fields = ItemRepository.browseFields,
 			imageTypeLimit = 1,
@@ -283,6 +295,9 @@ class CinemaHomeViewModel(
 		val result by api.itemsApi.getItems(
 			parentId = libraryId,
 			includeItemTypes = setOf(snapshot.mediaType.itemKind),
+			// Otherwise the server's GroupMoviesIntoBoxSets setting replaces movies
+			// with collection tiles even though includeItemTypes contains only Movie.
+			collapseBoxSetItems = false,
 			recursive = true,
 			sortBy = setOf(snapshot.sort.sortBy),
 			sortOrder = setOf(snapshot.sort.sortOrder),
@@ -325,11 +340,12 @@ class CinemaHomeViewModel(
 		val result by api.itemsApi.getItems(
 			parentId = collectionId,
 			includeItemTypes = setOf(mediaType.itemKind),
+			collapseBoxSetItems = false,
 			recursive = true,
-			limit = 0,
-			enableTotalRecordCount = true,
+			limit = 1,
+			enableTotalRecordCount = false,
 		)
-		result.totalRecordCount > 0
+		result.items.any { it.type == mediaType.itemKind }
 	} catch (error: ApiClientException) {
 		Timber.w(error, "Failed to probe collection %s", collectionId)
 		false
@@ -342,7 +358,8 @@ class CinemaHomeViewModel(
 	private suspend fun loadGenreRows(libraryId: UUID?, mediaType: CinemaMediaType): List<CinemaGenreRow> {
 		val genres by api.itemsApi.getItems(
 			parentId = libraryId,
-			includeItemTypes = setOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
+			includeItemTypes = setOf(mediaType.itemKind),
+			collapseBoxSetItems = false,
 			recursive = true,
 			fields = ItemRepository.browseFields,
 			limit = GENRE_SAMPLE_SIZE,
@@ -365,6 +382,7 @@ class CinemaHomeViewModel(
 				val result by api.itemsApi.getItems(
 					parentId = libraryId,
 					includeItemTypes = setOf(mediaType.itemKind),
+					collapseBoxSetItems = false,
 					recursive = true,
 					genres = listOf(genre),
 					sortBy = setOf(ItemSortBy.PREMIERE_DATE),
@@ -391,12 +409,12 @@ class CinemaHomeViewModel(
 		null
 	}
 
-	fun posterUrl(item: BaseItemDto): CinemaArtwork = item.cinemaPosterUrl(api, POSTER_IMAGE_WIDTH)
+	fun posterUrl(item: BaseItemDto): String? = item.cinemaPosterUrl(api, POSTER_IMAGE_WIDTH)
 
-	fun thumbUrl(item: BaseItemDto): CinemaArtwork = item.cinemaThumbUrl(api, THUMB_IMAGE_WIDTH)
+	fun thumbUrl(item: BaseItemDto): String? = item.cinemaThumbUrl(api, THUMB_IMAGE_WIDTH)
 
 	/** Hero uses the backdrop and only falls back to the poster when none is available. */
-	private fun heroBackdropUrl(item: BaseItemDto): CinemaArtwork =
+	private fun heroBackdropUrl(item: BaseItemDto): String? =
 		item.cinemaBackdropUrl(api, HERO_IMAGE_WIDTH)
 
 	private fun BaseItemDto.toHeroItem(): CinemaHeroItem {

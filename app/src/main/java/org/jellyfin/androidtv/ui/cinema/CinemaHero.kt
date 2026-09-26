@@ -43,8 +43,8 @@ import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.ui.base.Text
 
 /**
- * Default hero height. The caller limits it to the available viewport, keeping the
- * entire section visible when any of its buttons receives focus.
+ * Default hero height. The caller passes the height that is actually left below the
+ * header so the slide always fits into the viewport — see [CinemaHeroMinHeight].
  */
 val CinemaHeroMaxHeight = 320.dp
 
@@ -71,7 +71,7 @@ data class CinemaHeroItem(
 	val id: java.util.UUID,
 	val title: String,
 	val overview: String?,
-	val backdropUrl: CinemaArtwork?,
+	val backdropUrl: String?,
 	/** Genres, rendered as chips. */
 	val tags: List<String>,
 	/** Plain meta line: year, runtime, community rating, end time. */
@@ -134,14 +134,12 @@ fun CinemaHero(
 	Box(
 		modifier = modifier
 			.fillMaxWidth()
-			// Bound the slide to the shell viewport so its full bounds can be revealed.
+			// The height is handed down from the shell so the slide fits below the header.
 			.height(heroHeight)
-			.cinemaFocusSection()
 			.clip(CinemaDimens.HeroShape)
 			.background(CinemaColors.HeroBackground)
 			.border(1.dp, CinemaColors.Border, CinemaDimens.HeroShape)
-			// cinemaFocusSection forwards the button's request as the entire slide;
-			// it never starts a competing scroll coroutine.
+			// Compose scrolls the focused button into view; avoid a second scroll request.
 			.onFocusChanged { hasFocus = it.hasFocus }
 			.focusGroup(),
 	) {

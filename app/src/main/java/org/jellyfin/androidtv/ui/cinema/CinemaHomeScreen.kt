@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -75,8 +76,8 @@ data class CinemaHomeActions(
 fun CinemaHomeScreen(
 	state: CinemaHomeState,
 	actions: CinemaHomeActions,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
-	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
+	thumbUrl: (BaseItemDto) -> String?,
 	onSelectView: (CinemaView) -> Unit,
 	onSelectSort: (CinemaSort) -> Unit,
 	onLoadNextPage: () -> Unit,
@@ -116,13 +117,14 @@ fun CinemaHomeScreen(
 					.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 24.dp),
 			) {
 				BoxWithConstraints(Modifier.fillMaxSize()) {
-					// The entire slide must fit the viewport. The header may scroll away;
-					// subtracting its estimated height needlessly squeezed titles and buttons.
+					// The spotlight must never be taller than the space below the header.
+					// If it is, the focused play button and the slide itself ask the list
+					// for two different scroll positions and the page visibly shakes.
 					val heroHeight = (
-						maxHeight - CinemaDimens.PageGutter - CinemaDimens.Overscan
+						maxHeight - CinemaDimens.PageGutter - HEADER_HEIGHT - CinemaDimens.SectionGap
 						).coerceIn(CinemaHeroMinHeight, CinemaHeroMaxHeight)
 
-					CinemaLazyColumn(
+					LazyColumn(
 						state = listState,
 						// Restores focus to the last focused row instead of letting it fall
 						// back to the header (which would scroll the page to the top).
@@ -195,8 +197,8 @@ fun CinemaHomeScreen(
 		}
 	}
 
-	LaunchedEffect(shouldLoadMore, state.view, state.catalogHasMore) {
-		if (shouldLoadMore && state.view == CinemaView.All && state.catalogHasMore) {
+	LaunchedEffect(shouldLoadMore, state.view, state.catalogHasMore, state.catalog.size, state.loading) {
+		if (shouldLoadMore && !state.loading && state.view == CinemaView.All && state.catalogHasMore) {
 			onLoadNextPage()
 		}
 	}
@@ -244,8 +246,8 @@ private fun LazyListScope.allView(
 	state: CinemaHomeState,
 	actions: CinemaHomeActions,
 	onSelectSort: (CinemaSort) -> Unit,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
-	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
+	thumbUrl: (BaseItemDto) -> String?,
 	heroFocusRequester: FocusRequester,
 	requestHeroFocus: Boolean,
 	onHeroFocusRequested: () -> Unit,
@@ -337,7 +339,7 @@ private fun LazyListScope.allView(
 private fun LazyListScope.collectionsView(
 	state: CinemaHomeState,
 	actions: CinemaHomeActions,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
 	railFocusRequester: FocusRequester?,
 ) {
 	item(key = "collections-subtitle") {
@@ -362,7 +364,7 @@ private fun LazyListScope.collectionsView(
 private fun LazyListScope.genresView(
 	state: CinemaHomeState,
 	actions: CinemaHomeActions,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
 	railFocusRequester: FocusRequester?,
 ) {
 	items(state.genreRows, key = { it.name }) { row ->
@@ -410,3 +412,6 @@ private fun CinemaSkeletonRow() {
 
 private const val LOAD_MORE_THRESHOLD = 3
 private const val SKELETON_CARDS = CinemaDimens.GridColumns
+
+/** Logo (52 dp) + gap (18 dp) + page title — used to size the spotlight. */
+private val HEADER_HEIGHT = 118.dp

@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import org.jellyfin.androidtv.data.repository.ItemRepository
 import org.jellyfin.androidtv.util.apiclient.getUrl
 import org.jellyfin.androidtv.util.apiclient.primaryImage
+import org.jellyfin.androidtv.util.apiclient.seriesPrimaryImage
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.exception.ApiClientException
 import org.jellyfin.sdk.api.client.extensions.itemsApi
@@ -26,8 +27,8 @@ import java.util.UUID
 data class CinemaDetailState(
 	val loading: Boolean = true,
 	val item: BaseItemDto? = null,
-	val backdropUrl: CinemaArtwork? = null,
-	val posterUrl: CinemaArtwork? = null,
+	val backdropUrl: String? = null,
+	val posterUrl: String? = null,
 	/** Seasons for a series, episodes for a season, members for a collection — empty for movies. */
 	val children: List<BaseItemDto> = emptyList(),
 	/** The episode to continue with (series only). */
@@ -60,10 +61,12 @@ class CinemaDetailViewModel(
 	val state: StateFlow<CinemaDetailState> = _state.asStateFlow()
 
 	private var itemId: UUID? = null
+	private var collectionMediaType: CinemaMediaType? = null
 	private var childrenJob: Job? = null
 
-	fun load(id: UUID) {
+	fun load(id: UUID, mediaType: CinemaMediaType? = null) {
 		itemId = id
+		collectionMediaType = mediaType
 		_state.update { it.copy(loading = true) }
 
 		viewModelScope.launch(Dispatchers.IO) {
@@ -90,7 +93,7 @@ class CinemaDetailViewModel(
 
 	/** Refreshes user data after returning from playback. */
 	fun refresh() {
-		itemId?.let(::load)
+		itemId?.let { load(it, collectionMediaType) }
 	}
 
 	fun setSort(sort: CinemaSort) {
@@ -129,9 +132,12 @@ class CinemaDetailViewModel(
 				}
 
 				BaseItemKind.BOX_SET -> {
+					val itemTypes = collectionMediaType?.let { setOf(it.itemKind) }
+						?: setOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
 					val result by api.itemsApi.getItems(
 						parentId = item.id,
-						includeItemTypes = setOf(BaseItemKind.MOVIE, BaseItemKind.SERIES),
+						includeItemTypes = itemTypes,
+						collapseBoxSetItems = false,
 						recursive = true,
 						sortBy = setOf(sort.sortBy),
 						sortOrder = setOf(sort.sortOrder),
@@ -139,7 +145,7 @@ class CinemaDetailViewModel(
 						imageTypeLimit = 1,
 						enableTotalRecordCount = false,
 					)
-					result.items
+					result.items.filter { it.type in itemTypes }
 				}
 
 				else -> return
@@ -170,19 +176,23 @@ class CinemaDetailViewModel(
 		}
 	}
 
-	fun posterUrl(item: BaseItemDto): CinemaArtwork = item.cinemaPosterUrl(api, CARD_WIDTH)
+	fun posterUrl(item: BaseItemDto): String? = item.cinemaPosterUrl(api, CARD_WIDTH)
 
 	/** Landscape artwork for episode rows and the next up card. */
-	fun thumbUrl(item: BaseItemDto): CinemaArtwork = item.cinemaThumbUrl(api, THUMB_WIDTH)
+	fun thumbUrl(item: BaseItemDto): String? = item.cinemaThumbUrl(api, THUMB_WIDTH)
 
 	fun personImageUrl(person: BaseItemPerson): String? =
 		person.primaryImage?.getUrl(api, fillWidth = PERSON_WIDTH, fillHeight = PERSON_WIDTH)
 
 	/** Episodes have landscape artwork, the capsule shows the series poster instead. */
-	private fun heroPosterUrl(item: BaseItemDto): CinemaArtwork =
-		item.cinemaPosterUrl(api, POSTER_WIDTH, preferSeries = item.type == BaseItemKind.EPISODE)
+	private fun heroPosterUrl(item: BaseItemDto): String? {
+		if (item.type == BaseItemKind.EPISODE) {
+			item.seriesPrimaryImage?.getUrl(api, fillWidth = POSTER_WIDTH)?.let { return it }
+		}
+		return item.cinemaPosterUrl(api, POSTER_WIDTH)
+	}
 
-	private fun backdropUrl(item: BaseItemDto): CinemaArtwork = item.cinemaBackdropUrl(api, BACKDROP_WIDTH)
+	private fun backdropUrl(item: BaseItemDto): String? = item.cinemaBackdropUrl(api, BACKDROP_WIDTH)
 
 	private companion object {
 		const val POSTER_WIDTH = 420

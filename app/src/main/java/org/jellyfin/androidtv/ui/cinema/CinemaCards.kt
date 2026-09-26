@@ -53,7 +53,7 @@ import org.jellyfin.androidtv.ui.base.Text
 fun CinemaPosterCard(
 	title: String,
 	subtitle: String?,
-	imageUrl: CinemaArtwork?,
+	imageUrl: String?,
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 	onLongClick: (() -> Unit)? = null,
@@ -143,7 +143,7 @@ fun CinemaPosterCard(
 fun CinemaWideCard(
 	title: String,
 	subtitle: String?,
-	imageUrl: CinemaArtwork?,
+	imageUrl: String?,
 	progress: Float?,
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
@@ -253,7 +253,7 @@ fun CinemaProgressBar(
 }
 
 @Composable
-private fun CardArtwork(imageUrl: CinemaArtwork?, contentDescription: String?) {
+private fun CardArtwork(imageUrl: String?, contentDescription: String?) {
 	if (imageUrl == null) {
 		Box(
 			modifier = Modifier
@@ -382,7 +382,7 @@ fun CinemaEpisodeRow(
 	meta: List<String>,
 	rating: Float?,
 	overview: String?,
-	imageUrl: CinemaArtwork?,
+	imageUrl: String?,
 	progress: Float?,
 	played: Boolean,
 	onClick: () -> Unit,

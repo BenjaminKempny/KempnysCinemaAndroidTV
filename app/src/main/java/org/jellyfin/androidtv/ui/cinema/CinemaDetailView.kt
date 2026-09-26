@@ -71,8 +71,8 @@ data class CinemaDetailActions(
 fun CinemaDetailScreen(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
-	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
+	thumbUrl: (BaseItemDto) -> String?,
 	personImageUrl: (BaseItemPerson) -> String?,
 	modifier: Modifier = Modifier,
 ) {
@@ -138,7 +138,7 @@ private fun LazyListScope.collectionContent(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
 	collection: BaseItemDto,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
 ) {
 	item(key = "collection-header") {
 		Row(
@@ -215,8 +215,8 @@ private fun LazyListScope.detailContent(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
 	detailItem: BaseItemDto,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
-	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
+	thumbUrl: (BaseItemDto) -> String?,
 	personImageUrl: (BaseItemPerson) -> String?,
 	playFocusRequester: FocusRequester,
 ) {
@@ -269,8 +269,8 @@ private fun LazyListScope.detailContent(
 private fun LazyListScope.seriesSections(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
-	posterUrl: (BaseItemDto) -> CinemaArtwork?,
-	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
+	posterUrl: (BaseItemDto) -> String?,
+	thumbUrl: (BaseItemDto) -> String?,
 ) {
 	state.nextUp?.let { nextUp ->
 		item(key = "next-up") {
@@ -321,7 +321,7 @@ private fun LazyListScope.seriesSections(
 private fun LazyListScope.episodeList(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
-	thumbUrl: (BaseItemDto) -> CinemaArtwork?,
+	thumbUrl: (BaseItemDto) -> String?,
 ) {
 	if (state.children.isEmpty()) return
 

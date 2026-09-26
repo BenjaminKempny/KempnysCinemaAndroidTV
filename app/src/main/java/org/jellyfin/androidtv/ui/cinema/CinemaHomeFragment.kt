@@ -53,13 +53,13 @@ class CinemaHomeFragment : Fragment() {
 			CinemaHomeScreen(
 				state = state,
 				actions = CinemaHomeActions(
-					onOpenItem = { navigationRepository.navigate(Destinations.itemDetails(it.id)) },
+					onOpenItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
 					onPlayItem = ::play,
-					onOpenHeroItem = { navigationRepository.navigate(Destinations.itemDetails(it.id)) },
+					onOpenHeroItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
 					onPlayHeroItem = { hero -> playById(hero.id) },
 					// Secondary actions are not part of the card's focus target, they open
 					// the detail screen where the full action row lives (spec §2.7).
-					onItemMenu = { navigationRepository.navigate(Destinations.itemDetails(it.id)) },
+					onItemMenu = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
 					onRailSelect = ::onRailSelect,
 				),
 				posterUrl = viewModel::posterUrl,
