@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -59,11 +60,13 @@ fun CinemaSearchScreen(
 	onOpenItem: (BaseItemDto) -> Unit,
 	posterUrl: (BaseItemDto) -> String?,
 	modifier: Modifier = Modifier,
+	requestInitialFocus: Boolean = true,
+	leftFocusRequester: FocusRequester? = null,
 ) {
 	val inputFocusRequester = remember { FocusRequester() }
 	val groups = results.filter { it.items.isNotEmpty() }
 
-	LaunchedEffect(Unit) { runCatching { inputFocusRequester.requestFocus() } }
+	LaunchedEffect(Unit) { if (requestInitialFocus) runCatching { inputFocusRequester.requestFocus() } }
 
 	CinemaBackground(modifier) {
 		Column(Modifier.fillMaxSize()) {
@@ -79,7 +82,8 @@ fun CinemaSearchScreen(
 						bottom = 20.dp,
 					)
 					.fillMaxWidth()
-					.focusRequester(inputFocusRequester),
+					.focusRequester(inputFocusRequester)
+					.railOnLeft(leftFocusRequester, true),
 			)
 
 			if (groups.isEmpty()) {
@@ -115,7 +119,7 @@ fun CinemaSearchScreen(
 								.focusRestorer(),
 							horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
 						) {
-							items(group.items.toList(), key = { it.id }) { item ->
+							itemsIndexed(group.items.toList(), key = { _, item -> item.id }) { index, item ->
 								CinemaPosterCard(
 									title = item.cinemaTitle,
 									subtitle = item.cinemaSubtitle,
@@ -123,6 +127,7 @@ fun CinemaSearchScreen(
 									progress = item.cinemaProgress,
 									onClick = { onOpenItem(item) },
 									width = CinemaDimens.RowCardWidth,
+									modifier = Modifier.railOnLeft(leftFocusRequester, index == 0),
 								)
 							}
 						}

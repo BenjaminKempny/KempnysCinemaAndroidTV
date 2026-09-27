@@ -1,6 +1,7 @@
 package org.jellyfin.androidtv.ui.cinema
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -36,12 +37,15 @@ fun CinemaAsyncImage(
 ) {
 	val imageLoader = koinInject<ImageLoader>()
 	val context = LocalContext.current
-
-	AsyncImage(
-		model = ImageRequest.Builder(context)
+	val request = remember(context, model) {
+		ImageRequest.Builder(context)
 			.data(model)
 			.crossfade(CinemaMotion.ImageCrossfadeDuration)
-			.build(),
+			.build()
+	}
+
+	AsyncImage(
+		model = request,
 		imageLoader = imageLoader,
 		contentDescription = contentDescription,
 		contentScale = contentScale,

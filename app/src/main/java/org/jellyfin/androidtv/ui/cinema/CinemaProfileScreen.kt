@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,6 +29,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
@@ -62,17 +65,23 @@ fun CinemaProfileScreen(
 	state: CinemaProfileState,
 	actions: CinemaProfileActions,
 	modifier: Modifier = Modifier,
+	requestInitialFocus: Boolean = true,
+	leftFocusRequester: FocusRequester? = null,
 ) {
 	val firstUserFocusRequester = remember { FocusRequester() }
 	var focusRequested by remember { mutableStateOf(false) }
 
 	LaunchedEffect(state.users.isNotEmpty()) {
-		if (state.users.isNotEmpty() && !focusRequested) {
+		if (requestInitialFocus && state.users.isNotEmpty() && !focusRequested) {
 			focusRequested = runCatching { firstUserFocusRequester.requestFocus() }.isSuccess
 		}
 	}
 
-	CinemaBackground(modifier) {
+	CinemaBackground(modifier.focusProperties {
+		onExit = {
+			if (requestedFocusDirection == FocusDirection.Left) leftFocusRequester?.requestFocus()
+		}
+	}.focusGroup()) {
 		CinemaShell(
 			modifier = Modifier
 				.fillMaxSize()

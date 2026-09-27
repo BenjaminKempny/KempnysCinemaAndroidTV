@@ -5,11 +5,13 @@ import android.view.LayoutInflater
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.fragment.app.Fragment
 import androidx.fragment.compose.content
 import org.jellyfin.androidtv.ui.base.JellyfinTheme
@@ -25,6 +27,7 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 
 /** Host fragment for the cinema search screen. */
 class CinemaSearchFragment : Fragment() {
+	internal var railFocusRequester: FocusRequester? by mutableStateOf(null)
 	private val viewModel by viewModel<SearchViewModel>()
 	private val navigationRepository by inject<NavigationRepository>()
 	private val api by inject<ApiClient>()
@@ -44,6 +47,7 @@ class CinemaSearchFragment : Fragment() {
 	) = content {
 		val results by viewModel.searchResultsFlow.collectAsState()
 		var query by rememberSaveable { mutableStateOf(arguments?.getString(ARGUMENT_QUERY).orEmpty()) }
+		LaunchedEffect(Unit) { if (query.isNotBlank()) viewModel.searchImmediately(query) }
 
 		JellyfinTheme {
 			CinemaSearchScreen(
@@ -57,6 +61,8 @@ class CinemaSearchFragment : Fragment() {
 				onOpenItem = ::openItem,
 				posterUrl = ::posterUrl,
 				modifier = Modifier.fillMaxSize(),
+				requestInitialFocus = arguments?.getBoolean(CINEMA_EMBEDDED) != true,
+				leftFocusRequester = railFocusRequester,
 			)
 		}
 	}

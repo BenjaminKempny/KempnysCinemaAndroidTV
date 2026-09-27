@@ -7,7 +7,10 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.fragment.app.Fragment
 import androidx.fragment.compose.content
 import androidx.lifecycle.lifecycleScope
@@ -34,6 +37,8 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 
 /** Host fragment for the cinema profile / account switcher screen. */
 class CinemaProfileFragment : Fragment() {
+	internal var railFocusRequester: FocusRequester? by mutableStateOf(null)
+	internal var onReturnHome: (() -> Unit)? = null
 	private val viewModel by viewModel<CinemaProfileViewModel>()
 	private val settingsViewModel by activityViewModel<SettingsViewModel>()
 	private val navigationRepository by inject<NavigationRepository>()
@@ -51,14 +56,16 @@ class CinemaProfileFragment : Fragment() {
 			CinemaProfileScreen(
 				state = state,
 				actions = CinemaProfileActions(
-					onBack = { navigationRepository.goBack() },
-					onHome = { navigationRepository.reset(Destinations.home) },
+					onBack = { onReturnHome?.invoke() ?: navigationRepository.goBack() },
+					onHome = { onReturnHome?.invoke() ?: navigationRepository.reset(Destinations.home) },
 					onSelectUser = ::selectUser,
 					onManageAccounts = ::openAccountManager,
 					onSignOut = ::signOut,
 					onSettings = { settingsViewModel.show() },
 				),
 				modifier = Modifier.fillMaxSize(),
+				requestInitialFocus = arguments?.getBoolean(CINEMA_EMBEDDED) != true,
+				leftFocusRequester = railFocusRequester,
 			)
 		}
 	}

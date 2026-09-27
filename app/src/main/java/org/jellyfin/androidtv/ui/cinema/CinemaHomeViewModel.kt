@@ -76,6 +76,7 @@ class CinemaHomeViewModel(
 	private val api: ApiClient,
 	private val userViewsRepository: UserViewsRepository,
 ) : ViewModel() {
+	private val itemsApi = api.itemsApi
 	private val _state = MutableStateFlow(CinemaHomeState())
 	val state: StateFlow<CinemaHomeState> = _state.asStateFlow()
 
@@ -146,9 +147,12 @@ class CinemaHomeViewModel(
 
 				when (snapshot.view) {
 					CinemaView.All -> {
-						val hero = loadHero(libraryId, snapshot.mediaType)
-						val resume = loadContinueWatching(libraryId, snapshot.mediaType)
-						val page = loadCatalogPage(libraryId, snapshot, startIndex = 0)
+						val (hero, resume, page) = coroutineScope {
+							val hero = async { loadHero(libraryId, snapshot.mediaType) }
+							val resume = async { loadContinueWatching(libraryId, snapshot.mediaType) }
+							val page = async { loadCatalogPage(libraryId, snapshot, startIndex = 0) }
+							Triple(hero.await(), resume.await(), page.await())
+						}
 						ensureActive()
 
 						_state.update {
@@ -256,7 +260,7 @@ class CinemaHomeViewModel(
 	}
 
 	private suspend fun loadHero(libraryId: UUID?, mediaType: CinemaMediaType): List<CinemaHeroItem> {
-		val result by api.itemsApi.getItems(
+		val result by itemsApi.getItems(
 			parentId = libraryId,
 			includeItemTypes = setOf(mediaType.itemKind),
 			collapseBoxSetItems = false,
@@ -272,7 +276,7 @@ class CinemaHomeViewModel(
 	}
 
 	private suspend fun loadContinueWatching(libraryId: UUID?, mediaType: CinemaMediaType): List<BaseItemDto> {
-		val result by api.itemsApi.getResumeItems(
+		val result by itemsApi.getResumeItems(
 			parentId = libraryId,
 			includeItemTypes = setOf(if (mediaType == CinemaMediaType.Movies) BaseItemKind.MOVIE else BaseItemKind.EPISODE),
 			limit = RESUME_LIMIT,
@@ -292,7 +296,7 @@ class CinemaHomeViewModel(
 		snapshot: CinemaHomeState,
 		startIndex: Int,
 	): Page {
-		val result by api.itemsApi.getItems(
+		val result by itemsApi.getItems(
 			parentId = libraryId,
 			includeItemTypes = setOf(snapshot.mediaType.itemKind),
 			// Otherwise the server's GroupMoviesIntoBoxSets setting replaces movies
@@ -317,7 +321,7 @@ class CinemaHomeViewModel(
 	 * under Shows.
 	 */
 	private suspend fun loadCollections(mediaType: CinemaMediaType): List<BaseItemDto> = coroutineScope {
-		val result by api.itemsApi.getItems(
+		val result by itemsApi.getItems(
 			includeItemTypes = setOf(BaseItemKind.BOX_SET),
 			recursive = true,
 			sortBy = setOf(ItemSortBy.SORT_NAME),
@@ -337,7 +341,7 @@ class CinemaHomeViewModel(
 	}
 
 	private suspend fun contains(collectionId: UUID, mediaType: CinemaMediaType): Boolean = try {
-		val result by api.itemsApi.getItems(
+		val result by itemsApi.getItems(
 			parentId = collectionId,
 			includeItemTypes = setOf(mediaType.itemKind),
 			collapseBoxSetItems = false,
@@ -356,7 +360,7 @@ class CinemaHomeViewModel(
 	 * (web: `genreRows.ts:24-25`).
 	 */
 	private suspend fun loadGenreRows(libraryId: UUID?, mediaType: CinemaMediaType): List<CinemaGenreRow> {
-		val genres by api.itemsApi.getItems(
+		val genres by itemsApi.getItems(
 			parentId = libraryId,
 			includeItemTypes = setOf(mediaType.itemKind),
 			collapseBoxSetItems = false,
@@ -379,7 +383,7 @@ class CinemaHomeViewModel(
 
 		return genreNames.mapNotNull { genre ->
 			try {
-				val result by api.itemsApi.getItems(
+				val result by itemsApi.getItems(
 					parentId = libraryId,
 					includeItemTypes = setOf(mediaType.itemKind),
 					collapseBoxSetItems = false,

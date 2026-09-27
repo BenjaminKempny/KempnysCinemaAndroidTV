@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -34,6 +33,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +82,8 @@ fun CinemaHomeScreen(
 	onSelectSort: (CinemaSort) -> Unit,
 	onLoadNextPage: () -> Unit,
 	modifier: Modifier = Modifier,
+	selectedRailItem: CinemaRailItem? = null,
+	secondaryContent: (@Composable (FocusRequester) -> Unit)? = null,
 ) {
 	val listState = rememberLazyListState()
 	val heroFocusRequester = remember { FocusRequester() }
@@ -98,18 +100,27 @@ fun CinemaHomeScreen(
 		stringResource(R.string.cinema_tab_genres),
 	)
 
-	val railSelection = when (state.mediaType) {
+	val railSelection = selectedRailItem ?: when (state.mediaType) {
 		CinemaMediaType.Movies -> CinemaRailItem.Movies
 		CinemaMediaType.Shows -> CinemaRailItem.Shows
+	}
+	LaunchedEffect(state.mediaType, state.view) {
+		listState.scrollToItem(0)
 	}
 
 	CinemaBackground(modifier) {
 		Row(Modifier.fillMaxSize()) {
 			CinemaRail(
 				selected = railSelection,
-				onSelect = actions.onRailSelect,
+				onSelect = { heroFocusRequested = true; actions.onRailSelect(it) },
 				focusRequester = railFocusRequester,
+				modifier = Modifier.onFocusChanged { if (it.hasFocus) heroFocusRequested = true },
 			)
+
+			if (secondaryContent != null) {
+				Box(Modifier.weight(1f).fillMaxSize()) { secondaryContent(railFocusRequester) }
+				return@Row
+			}
 
 			CinemaShell(
 				modifier = Modifier
@@ -117,14 +128,12 @@ fun CinemaHomeScreen(
 					.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 24.dp),
 			) {
 				BoxWithConstraints(Modifier.fillMaxSize()) {
-					// The spotlight must never be taller than the space below the header.
-					// If it is, the focused play button and the slide itself ask the list
-					// for two different scroll positions and the page visibly shakes.
+					// Size the whole section to the viewport, not an estimated header height.
 					val heroHeight = (
-						maxHeight - CinemaDimens.PageGutter - HEADER_HEIGHT - CinemaDimens.SectionGap
+						maxHeight - CinemaDimens.PageGutter - CinemaDimens.Overscan
 						).coerceIn(CinemaHeroMinHeight, CinemaHeroMaxHeight)
 
-					LazyColumn(
+					CinemaLazyColumn(
 						state = listState,
 						// Restores focus to the last focused row instead of letting it fall
 						// back to the header (which would scroll the page to the top).
@@ -145,6 +154,7 @@ fun CinemaHomeScreen(
 								selectedIndex = state.view.ordinal,
 								onSelect = { onSelectView(CinemaView.entries[it]) },
 								leftFocusRequester = railFocusRequester,
+								onNavigationFocus = { heroFocusRequested = true },
 								title = stringResource(
 									when (state.view) {
 										CinemaView.All -> when (state.mediaType) {
@@ -197,8 +207,8 @@ fun CinemaHomeScreen(
 		}
 	}
 
-	LaunchedEffect(shouldLoadMore, state.view, state.catalogHasMore, state.catalog.size, state.loading) {
-		if (shouldLoadMore && !state.loading && state.view == CinemaView.All && state.catalogHasMore) {
+	LaunchedEffect(shouldLoadMore, state.view, state.catalogHasMore, state.catalog.size, state.loading, secondaryContent == null) {
+		if (secondaryContent == null && shouldLoadMore && !state.loading && state.view == CinemaView.All && state.catalogHasMore) {
 			onLoadNextPage()
 		}
 	}
@@ -211,8 +221,12 @@ private fun CinemaHeader(
 	onSelect: (Int) -> Unit,
 	title: String,
 	leftFocusRequester: FocusRequester? = null,
+	onNavigationFocus: () -> Unit,
 ) {
-	Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+	Column(
+		modifier = Modifier.cinemaFocusSection().onFocusChanged { if (it.hasFocus) onNavigationFocus() },
+		verticalArrangement = Arrangement.spacedBy(18.dp),
+	) {
 		Box(Modifier.fillMaxWidth()) {
 			Image(
 				painter = painterResource(R.drawable.kempnys_logo),
@@ -412,6 +426,3 @@ private fun CinemaSkeletonRow() {
 
 private const val LOAD_MORE_THRESHOLD = 3
 private const val SKELETON_CARDS = CinemaDimens.GridColumns
-
-/** Logo (52 dp) + gap (18 dp) + page title — used to size the spotlight. */
-private val HEADER_HEIGHT = 118.dp

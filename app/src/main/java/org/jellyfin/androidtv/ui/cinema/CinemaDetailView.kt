@@ -361,7 +361,7 @@ private fun CinemaDetailHero(
 		modifier = Modifier
 			.fillMaxWidth()
 			.height(DETAIL_HERO_HEIGHT)
-			.cinemaFocusSection()
+			.cinemaFocusSection(topInset = 28.dp + NAV_BUTTON_SIZE + 24.dp)
 			.clip(CinemaDimens.HeroShape)
 			.background(CinemaColors.HeroBackground)
 			.border(1.dp, CinemaColors.Border, CinemaDimens.HeroShape),

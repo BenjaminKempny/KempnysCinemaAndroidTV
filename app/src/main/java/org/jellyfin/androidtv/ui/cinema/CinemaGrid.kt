@@ -24,11 +24,13 @@ fun LazyListScope.cinemaGrid(
 	/** `DPAD_LEFT` on the first column enters the sidebar instead of the scroll container. */
 	railFocusRequester: FocusRequester? = null,
 ) {
-	val rows = items.chunked(CinemaDimens.GridColumns)
+	val columns = CinemaDimens.GridColumns
+	val rowCount = (items.size + columns - 1) / columns
 
-	items(rows.size, key = { "$keyPrefix-row-$it" }) { rowIndex ->
+	items(rowCount, key = { "$keyPrefix-row-$it" }) { rowIndex ->
 		Row(horizontalArrangement = Arrangement.spacedBy(CinemaDimens.GridHorizontalGap)) {
-			rows[rowIndex].forEachIndexed { columnIndex, item ->
+			val start = rowIndex * columns
+			items.subList(start, minOf(start + columns, items.size)).forEachIndexed { columnIndex, item ->
 				CinemaPosterCard(
 					title = item.cinemaTitle,
 					subtitle = subtitle(item),

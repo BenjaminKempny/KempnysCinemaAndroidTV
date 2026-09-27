@@ -4,12 +4,21 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.fragment.app.Fragment
+import androidx.fragment.compose.AndroidFragment
 import androidx.fragment.compose.content
+import androidx.fragment.compose.rememberFragmentState
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -48,6 +57,33 @@ class CinemaHomeFragment : Fragment() {
 		savedInstanceState: Bundle?,
 	) = content {
 		val state by viewModel.state.collectAsState()
+		var selectedRail by rememberSaveable { mutableStateOf(CinemaRailItem.Movies) }
+		val searchState = rememberFragmentState()
+		val profileState = rememberFragmentState()
+		val embeddedArguments = remember { Bundle().apply { putBoolean(CINEMA_EMBEDDED, true) } }
+		val returnHome = {
+			selectedRail = if (state.mediaType == CinemaMediaType.Movies) CinemaRailItem.Movies else CinemaRailItem.Shows
+		}
+		val secondaryContent: (@Composable (FocusRequester) -> Unit)? = when (selectedRail) {
+			CinemaRailItem.Search -> { rail ->
+				AndroidFragment<CinemaSearchFragment>(
+					modifier = Modifier.fillMaxSize(),
+					fragmentState = searchState,
+					arguments = embeddedArguments,
+					onUpdate = { it.railFocusRequester = rail },
+				)
+			}
+			CinemaRailItem.Profile -> { rail ->
+				AndroidFragment<CinemaProfileFragment>(
+					modifier = Modifier.fillMaxSize(),
+					fragmentState = profileState,
+					arguments = embeddedArguments,
+					onUpdate = { it.railFocusRequester = rail; it.onReturnHome = returnHome },
+				)
+			}
+			else -> null
+		}
+		BackHandler(enabled = secondaryContent != null) { returnHome() }
 
 		JellyfinTheme {
 			CinemaHomeScreen(
@@ -60,7 +96,7 @@ class CinemaHomeFragment : Fragment() {
 					// Secondary actions are not part of the card's focus target, they open
 					// the detail screen where the full action row lives (spec §2.7).
 					onItemMenu = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
-					onRailSelect = ::onRailSelect,
+					onRailSelect = { selectedRail = it; onRailSelect(it) },
 				),
 				posterUrl = viewModel::posterUrl,
 				thumbUrl = viewModel::thumbUrl,
@@ -68,6 +104,8 @@ class CinemaHomeFragment : Fragment() {
 				onSelectSort = viewModel::setSort,
 				onLoadNextPage = viewModel::loadNextCatalogPage,
 				modifier = Modifier.fillMaxSize(),
+				selectedRailItem = selectedRail,
+				secondaryContent = secondaryContent,
 			)
 		}
 	}
@@ -93,12 +131,12 @@ class CinemaHomeFragment : Fragment() {
 	}
 
 	private fun onRailSelect(item: CinemaRailItem) = when (item) {
-		CinemaRailItem.Search -> navigationRepository.navigate(Destinations.search())
+		CinemaRailItem.Search -> Unit
 		CinemaRailItem.Movies -> viewModel.setMediaType(CinemaMediaType.Movies)
 		CinemaRailItem.Shows -> viewModel.setMediaType(CinemaMediaType.Shows)
 		// The web profile page manages avatar and password; on Android TV the closest
 		// equivalent is the cinema styled account switcher.
-		CinemaRailItem.Profile -> navigationRepository.navigate(Destinations.profile)
+		CinemaRailItem.Profile -> Unit
 		CinemaRailItem.Settings -> settingsViewModel.show()
 	}
 
@@ -124,3 +162,6 @@ class CinemaHomeFragment : Fragment() {
 		const val TICKS_PER_MILLISECOND = 10_000L
 	}
 }
+
+internal const val CINEMA_EMBEDDED = "cinema_embedded"
+

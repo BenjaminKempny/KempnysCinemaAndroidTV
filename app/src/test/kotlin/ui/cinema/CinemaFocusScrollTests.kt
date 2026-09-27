@@ -4,6 +4,16 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 
 class CinemaFocusScrollTests : FunSpec({
+	test("detail play focus reveals navigation and hero together without a second correction") {
+		val navigationHeight = 96f
+		val heroHeight = 320f
+		val sectionOffset = -navigationHeight
+		val distance = CinemaBringIntoViewSpec.calculateScrollDistance(sectionOffset, navigationHeight + heroHeight, 540f)
+		distance shouldBe -96f
+		CinemaBringIntoViewSpec.calculateScrollDistance(sectionOffset - distance, navigationHeight + heroHeight, 540f) shouldBe 0f
+		CinemaBringIntoViewSpec.calculateScrollDistance(navigationHeight + 240f, 48f, 540f) shouldBe 0f
+	}
+
 	test("visible play button does not pull the hero above the viewport") {
 		CinemaBringIntoViewSpec.calculateScrollDistance(350f, 48f, 480f) shouldBe 0f
 		CinemaBringIntoViewSpec.calculateScrollDistance(120f, 320f, 480f) shouldBe 0f

@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,10 +35,13 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
 import org.jellyfin.androidtv.ui.base.Icon
 import org.jellyfin.androidtv.ui.base.Text
@@ -236,18 +240,21 @@ fun CinemaTabRow(
 	val tabRequesters = remember(tabs.size) { List(tabs.size) { FocusRequester() } }
 	val currentSelectedIndex by rememberUpdatedState(selectedIndex)
 	var focusedIndex by remember { mutableStateOf<Int?>(null) }
+	LaunchedEffect(focusedIndex) {
+		focusedIndex?.takeIf { it != currentSelectedIndex }?.let(onSelect)
+	}
 
 	val pillIndex = (focusedIndex ?: selectedIndex).coerceIn(0, (tabs.size - 1).coerceAtLeast(0))
 	val pillOffset = with(density) { tabWidths.take(pillIndex).sum().toDp() }
 	val pillWidth = with(density) { tabWidths.getOrElse(pillIndex) { 0 }.toDp() }
 
 	val reducedMotion = rememberReducedMotion()
-	val animatedOffset by animateDpAsState(
+	val animatedOffset = animateDpAsState(
 		targetValue = pillOffset,
 		animationSpec = if (reducedMotion) tween(0) else CinemaMotion.navPill(),
 		label = "cinemaPillOffset",
 	)
-	val animatedWidth by animateDpAsState(
+	val animatedWidth = animateDpAsState(
 		targetValue = pillWidth,
 		animationSpec = if (reducedMotion) tween(0) else CinemaMotion.navPill(),
 		label = "cinemaPillWidth",
@@ -280,11 +287,15 @@ fun CinemaTabRow(
 			.focusGroup(),
 	) {
 		// The sliding pill lives behind the labels.
-		if (animatedWidth > 0.dp) {
+		if (pillWidth > 0.dp) {
 			Box(
 				modifier = Modifier
-					.offset(x = animatedOffset)
-					.width(animatedWidth)
+					.offset { IntOffset(animatedOffset.value.roundToPx(), 0) }
+					.layout { measurable, constraints ->
+						val width = constraints.constrainWidth(animatedWidth.value.roundToPx())
+						val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+						layout(placeable.width, placeable.height) { placeable.placeRelative(0, 0) }
+					}
 					.height(CinemaDimens.TabHeight)
 					.clip(CinemaDimens.PillShape)
 					.background(pillColor),

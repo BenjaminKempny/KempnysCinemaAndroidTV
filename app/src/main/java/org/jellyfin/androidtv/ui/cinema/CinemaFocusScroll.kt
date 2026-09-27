@@ -15,9 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.node.ModifierNodeElement
+import androidx.compose.ui.node.requireDensity
+import androidx.compose.ui.node.requireLayoutCoordinates
 import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.relocation.BringIntoViewModifierNode
 import androidx.compose.ui.relocation.bringIntoView
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 
 /** Minimal scrolling: a visible button must not pull its section above the TV viewport. */
 internal object CinemaBringIntoViewSpec : BringIntoViewSpec
@@ -46,21 +50,25 @@ internal fun CinemaLazyColumn(
  * Replace a child's requested bounds with the whole section. There is only one request,
  * not an onFocusChanged scroll job racing Compose's automatic focus scrolling.
  */
-internal fun Modifier.cinemaFocusSection(): Modifier = this.then(CinemaFocusSectionElement)
+internal fun Modifier.cinemaFocusSection(topInset: Dp = 0.dp): Modifier = this.then(CinemaFocusSectionElement(topInset))
 
-private data object CinemaFocusSectionElement : ModifierNodeElement<CinemaFocusSectionNode>() {
-	override fun create() = CinemaFocusSectionNode()
-	override fun update(node: CinemaFocusSectionNode) = Unit
+private data class CinemaFocusSectionElement(val topInset: Dp) : ModifierNodeElement<CinemaFocusSectionNode>() {
+	override fun create() = CinemaFocusSectionNode(topInset)
+	override fun update(node: CinemaFocusSectionNode) { node.topInset = topInset }
 	override fun InspectorInfo.inspectableProperties() {
 		name = "cinemaFocusSection"
 	}
 }
 
-private class CinemaFocusSectionNode : Modifier.Node(), BringIntoViewModifierNode {
+private class CinemaFocusSectionNode(var topInset: Dp) : Modifier.Node(), BringIntoViewModifierNode {
 	override suspend fun bringIntoView(childCoordinates: LayoutCoordinates, boundsProvider: () -> Rect?) {
 		if (!childCoordinates.isAttached || boundsProvider() == null) return
-		// The extension forwards this node's full, current bounds to the next ancestor.
-		this.bringIntoView()
+		this.bringIntoView {
+			if (!isAttached) return@bringIntoView null
+			val size = requireLayoutCoordinates().size
+			val inset = with(requireDensity()) { topInset.toPx() }
+			Rect(0f, -inset, size.width.toFloat(), size.height.toFloat())
+		}
 	}
 }
 

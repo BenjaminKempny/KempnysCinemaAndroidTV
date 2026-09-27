@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,12 +25,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.ui.base.Icon
 
@@ -62,8 +64,12 @@ fun CinemaRail(
 	focusRequester: FocusRequester? = null,
 ) {
 	val items = CinemaRailItem.entries
+	val requesters = remember { List(items.size) { FocusRequester() } }
 	var focusedItem by remember { mutableStateOf<CinemaRailItem?>(null) }
 	val reducedMotion = rememberReducedMotion()
+	LaunchedEffect(focusedItem) {
+		focusedItem?.takeIf { it != selected }?.let(onSelect)
+	}
 
 	val activeItem = focusedItem ?: selected
 	val activeIndex = items.indexOf(activeItem).coerceAtLeast(0)
@@ -93,16 +99,15 @@ fun CinemaRail(
 				.border(1.dp, CinemaColors.Border, CinemaDimens.ShellShape)
 				.padding(vertical = 12.dp, horizontal = 8.dp)
 				.onFocusChanged { if (!it.hasFocus) focusedItem = null }
-				.then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
-				// `focusRestorer` has to sit *above* the group it restores, otherwise it
-				// never sees the child that was focused last.
-				.focusRestorer()
+				.focusProperties {
+					onEnter = { requesters[selected.ordinal].requestFocus() }
+				}
 				.focusGroup(),
 		) {
 			// The sliding pill lives behind the icons.
 			Box(
 				modifier = Modifier
-					.offset(y = pillOffset)
+					.offset { IntOffset(0, pillOffset.roundToPx()) }
 					.size(CinemaDimens.RailItemSize)
 					.clip(CinemaDimens.PillShape)
 					.background(pillColor),
@@ -116,6 +121,9 @@ fun CinemaRail(
 						railFocused = focusedItem != null,
 						onFocused = { focusedItem = item },
 						onClick = { onSelect(item) },
+						modifier = Modifier
+							.focusRequester(requesters[item.ordinal])
+							.then(if (item == selected && focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
 					)
 				}
 			}
@@ -130,6 +138,7 @@ private fun CinemaRailButton(
 	railFocused: Boolean,
 	onFocused: () -> Unit,
 	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
 
@@ -144,7 +153,7 @@ private fun CinemaRailButton(
 	)
 
 	Box(
-		modifier = Modifier
+		modifier = modifier
 			.size(CinemaDimens.RailItemSize)
 			.onFocusChanged { if (it.isFocused) onFocused() }
 			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
