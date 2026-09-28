@@ -43,6 +43,9 @@ fun Modifier.cinemaFocusGlow(
 	cornerRadius: Dp = CinemaDimens.CardRadius,
 	width: Dp = 6.dp,
 ): Modifier = composed {
+	val performanceMode = LocalCinemaPerformanceMode.current
+	if (performanceMode) return@composed this
+
 	val reducedMotion = rememberReducedMotion()
 	val color by androidx.compose.animation.animateColorAsState(
 		targetValue = if (focused) CinemaColors.FocusRing else Color.Transparent,
@@ -106,11 +109,10 @@ fun Modifier.cinemaFocusable(
 ): Modifier = this
 	.cinemaFocusRing(focused, cornerRadius)
 
-/** A7 — skeleton shimmer, `2s` alternating ease-in-out. */
-@Composable
-fun rememberShimmerBrush(): Brush {
+/** Placeholder surface used while data is loading. */
+fun Modifier.cinemaSkeleton(): Modifier = composed {
 	val reducedMotion = rememberReducedMotion()
-	if (reducedMotion) return Brush.linearGradient(CinemaColors.ShimmerColors)
+	if (reducedMotion) return@composed background(CinemaColors.CardPlaceholder)
 
 	val transition = rememberInfiniteTransition(label = "cinemaShimmer")
 	val progress by transition.animateFloat(
@@ -126,17 +128,15 @@ fun rememberShimmerBrush(): Brush {
 		label = "cinemaShimmerProgress",
 	)
 
-	val shift = progress * 1000f
-	return Brush.linearGradient(
-		colors = CinemaColors.ShimmerColors,
-		start = Offset(shift - 1000f, 0f),
-		end = Offset(shift, 0f),
-	)
-}
-
-/** Placeholder surface used while data is loading. */
-fun Modifier.cinemaSkeleton(): Modifier = composed {
-	background(rememberShimmerBrush())
+	drawBehind {
+		val shift = progress * 1000f
+		val brush = Brush.linearGradient(
+			colors = CinemaColors.ShimmerColors,
+			start = Offset(shift - 1000f, 0f),
+			end = Offset(shift, 0f),
+		)
+		drawRect(brush)
+	}
 }
 
 /** Reads focus state from an [InteractionSource] for the cinema focus modifiers. */

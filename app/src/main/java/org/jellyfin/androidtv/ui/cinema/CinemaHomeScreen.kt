@@ -148,7 +148,7 @@ fun CinemaHomeScreen(
 						),
 						verticalArrangement = Arrangement.spacedBy(CinemaDimens.SectionGap),
 					) {
-						item(key = "header") {
+						item(key = "header", contentType = "header") {
 							CinemaHeader(
 								tabs = tabs,
 								selectedIndex = state.view.ordinal,
@@ -188,7 +188,7 @@ fun CinemaHomeScreen(
 						}
 
 						if (state.loading) {
-							item(key = "skeleton") { CinemaSkeletonRow() }
+							item(key = "skeleton", contentType = "skeleton") { CinemaSkeletonRow() }
 						}
 					}
 				}
@@ -269,7 +269,7 @@ private fun LazyListScope.allView(
 	railFocusRequester: FocusRequester?,
 ) {
 	if (state.hero.isNotEmpty()) {
-		item(key = "hero") {
+		item(key = "hero", contentType = "hero") {
 			CinemaHero(
 				items = state.hero,
 				onPlay = actions.onPlayHeroItem,
@@ -284,7 +284,7 @@ private fun LazyListScope.allView(
 	}
 
 	if (state.continueWatching.isNotEmpty()) {
-		item(key = "continue-watching") {
+		item(key = "continue-watching", contentType = "continueWatching") {
 			CinemaPanel(Modifier.fillMaxWidth()) {
 				Column(
 					modifier = Modifier.padding(vertical = 24.dp),
@@ -302,7 +302,7 @@ private fun LazyListScope.allView(
 						contentPadding = PaddingValues(horizontal = 24.dp),
 						horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
 					) {
-						itemsIndexed(state.continueWatching, key = { _, item -> item.id }) { index, item ->
+						itemsIndexed(state.continueWatching, key = { _, item -> item.id }, contentType = { _, _ -> "continueWatchingItem" }) { index, item ->
 							CinemaWideCard(
 								title = item.cinemaTitle,
 								subtitle = item.cinemaSubtitle,
@@ -320,7 +320,7 @@ private fun LazyListScope.allView(
 	}
 
 	if (state.catalog.isNotEmpty()) {
-		item(key = "catalog-title") {
+		item(key = "catalog-title", contentType = "catalogTitle") {
 			Row(
 				modifier = Modifier.fillMaxWidth(),
 				verticalAlignment = Alignment.CenterVertically,
@@ -356,7 +356,7 @@ private fun LazyListScope.collectionsView(
 	posterUrl: (BaseItemDto) -> String?,
 	railFocusRequester: FocusRequester?,
 ) {
-	item(key = "collections-subtitle") {
+	item(key = "collections-subtitle", contentType = "collectionsSubtitle") {
 		Text(
 			text = stringResource(R.string.cinema_collections_subtitle),
 			color = CinemaColors.Muted,
@@ -381,7 +381,7 @@ private fun LazyListScope.genresView(
 	posterUrl: (BaseItemDto) -> String?,
 	railFocusRequester: FocusRequester?,
 ) {
-	items(state.genreRows, key = { it.name }) { row ->
+	items(state.genreRows, key = { it.name }, contentType = { "genreRow" }) { row ->
 		Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
 			CinemaSectionTitle(row.name)
 
@@ -391,7 +391,7 @@ private fun LazyListScope.genresView(
 					.focusRestorer(),
 				horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
 			) {
-				itemsIndexed(row.items, key = { _, item -> item.id }) { index, item ->
+				itemsIndexed(row.items, key = { _, item -> item.id }, contentType = { _, _ -> "posterItem" }) { index, item ->
 					CinemaPosterCard(
 						title = item.cinemaTitle,
 						subtitle = item.cinemaSubtitle,

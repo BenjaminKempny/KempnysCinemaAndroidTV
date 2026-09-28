@@ -6,8 +6,11 @@ import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+
+val LocalCinemaPerformanceMode = compositionLocalOf { false }
 
 /**
  * Motion specification ported from the web (spec §1.3). Every easing curve in the web
@@ -57,8 +60,9 @@ object CinemaMotion {
 @Composable
 fun rememberReducedMotion(): Boolean {
 	val context = LocalContext.current
-	return remember(context) {
-		Settings.Global.getFloat(
+	val performanceMode = LocalCinemaPerformanceMode.current
+	return remember(context, performanceMode) {
+		performanceMode || Settings.Global.getFloat(
 			context.contentResolver,
 			Settings.Global.ANIMATOR_DURATION_SCALE,
 			1f,

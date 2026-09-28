@@ -27,7 +27,7 @@ fun LazyListScope.cinemaGrid(
 	val columns = CinemaDimens.GridColumns
 	val rowCount = (items.size + columns - 1) / columns
 
-	items(rowCount, key = { "$keyPrefix-row-$it" }) { rowIndex ->
+	items(rowCount, key = { "$keyPrefix-row-$it" }, contentType = { "cinemaGridRow" }) { rowIndex ->
 		Row(horizontalArrangement = Arrangement.spacedBy(CinemaDimens.GridHorizontalGap)) {
 			val start = rowIndex * columns
 			items.subList(start, minOf(start + columns, items.size)).forEachIndexed { columnIndex, item ->

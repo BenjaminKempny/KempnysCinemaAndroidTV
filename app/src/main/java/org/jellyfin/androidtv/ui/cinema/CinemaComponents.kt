@@ -57,11 +57,12 @@ fun CinemaShell(
 	modifier: Modifier = Modifier,
 	content: @Composable () -> Unit,
 ) {
+	val performanceMode = LocalCinemaPerformanceMode.current
 	Box(
 		modifier = modifier
 			.clip(CinemaDimens.ShellShape)
-			.background(CinemaColors.ShellBackground)
-			.border(1.dp, CinemaColors.Border, CinemaDimens.ShellShape),
+			.then(if (performanceMode) Modifier.background(CinemaColors.Surface) else Modifier.background(CinemaColors.ShellBackground))
+			.then(if (performanceMode) Modifier else Modifier.border(1.dp, CinemaColors.Border, CinemaDimens.ShellShape)),
 	) {
 		content()
 	}
@@ -73,11 +74,12 @@ fun CinemaPanel(
 	modifier: Modifier = Modifier,
 	content: @Composable () -> Unit,
 ) {
+	val performanceMode = LocalCinemaPerformanceMode.current
 	Box(
 		modifier = modifier
 			.clip(CinemaDimens.PanelShape)
-			.background(CinemaColors.Surface.copy(alpha = 0.55f))
-			.border(1.dp, CinemaColors.Border, CinemaDimens.PanelShape),
+			.background(if (performanceMode) CinemaColors.Surface else CinemaColors.Surface.copy(alpha = 0.55f))
+			.then(if (performanceMode) Modifier else Modifier.border(1.dp, CinemaColors.Border, CinemaDimens.PanelShape)),
 	) {
 		content()
 	}
@@ -380,13 +382,16 @@ fun CinemaSectionTitle(
 fun CinemaBackground(
 	modifier: Modifier = Modifier,
 	content: @Composable () -> Unit,
-) = Box(
-	modifier = modifier
-		.fillMaxSize()
-		.background(CinemaColors.PageBase)
-		.background(CinemaColors.PageBackground),
 ) {
-	content()
+	val performanceMode = LocalCinemaPerformanceMode.current
+	Box(
+		modifier = modifier
+			.fillMaxSize()
+			.background(CinemaColors.PageBase)
+			.then(if (performanceMode) Modifier else Modifier.background(CinemaColors.PageBackground)),
+	) {
+		content()
+	}
 }
 
 internal val CinemaContentPadding = PaddingValues(

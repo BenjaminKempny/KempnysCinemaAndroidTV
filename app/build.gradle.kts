@@ -70,6 +70,24 @@ android {
 			signingConfig = signingConfigs.findByName("release")
 		}
 
+		create("benchmark") {
+			initWith(buildTypes.getByName("release"))
+			matchingFallbacks += listOf("release")
+
+			// Benchmark requires release-like performance but a debuggable signature to connect
+			signingConfig = signingConfigs.getByName("debug")
+
+			// Use different application id so it doesn't override the release app
+			applicationIdSuffix = ".benchmark"
+
+			resValue("string", "app_id", namespace + applicationIdSuffix)
+			resValue("string", "app_search_suggest_authority", "${namespace + applicationIdSuffix}.content")
+			resValue("string", "app_search_suggest_intent_data", "content://${namespace + applicationIdSuffix}.content/intent")
+			resValue("string", "app_name", "@string/app_name_benchmark")
+
+			proguardFiles("benchmark-rules.pro")
+		}
+
 		debug {
 			// Use different application id to run release and debug at the same time
 			applicationIdSuffix = ".debug"
@@ -182,6 +200,9 @@ dependencies {
 
 	// Compatibility (desugaring)
 	coreLibraryDesugaring(libs.android.desugar)
+
+	// Baseline Profiles
+	implementation("androidx.profileinstaller:profileinstaller:1.3.1")
 
 	// Testing
 	testImplementation(libs.kotest.runner.junit5)

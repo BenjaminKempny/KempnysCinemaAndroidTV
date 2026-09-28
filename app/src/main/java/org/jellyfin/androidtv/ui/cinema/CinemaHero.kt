@@ -108,9 +108,9 @@ fun CinemaHero(
 	var hasFocus by remember { mutableStateOf(false) }
 	val reducedMotion = rememberReducedMotion()
 
-	// Auto rotation, paused while focused.
-	LaunchedEffect(items, hasFocus) {
-		if (hasFocus) return@LaunchedEffect
+	// Auto rotation, paused while focused or in reduced motion.
+	LaunchedEffect(items, hasFocus, reducedMotion) {
+		if (hasFocus || reducedMotion) return@LaunchedEffect
 		while (true) {
 			delay(CinemaMotion.HeroRotationIntervalMs)
 			index = (index + 1) % items.size

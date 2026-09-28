@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+	<!-- To run the benchmarks on older devices we need to query the app being tested -->
+	<queries>
+		<package android:name="org.jellyfin.androidtv.benchmark" />
+	</queries>
+</manifest>

@@ -51,6 +51,11 @@ class UserPreferences(context: Context) : SharedPreferenceStore(
 		var cinemaLightThemeEnabled = booleanPreference("cinema_light_theme", false)
 
 		/**
+		 * Reduce animations and processing in the cinema interface.
+		 */
+		var cinemaPerformanceModeEnabled = booleanPreference("cinema_performance_mode", false)
+
+		/**
 		 * Behavior of app background while browsing
 		 */
 		var backdropBehavior = enumPreference("backdrop_behavior", BackdropBehavior.BACKDROP_WITH_BLUR)
