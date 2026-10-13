@@ -3,7 +3,7 @@ plugins {
 }
 
 android {
-	namespace = "org.jellyfin.androidtv.benchmark"
+	namespace = "org.jellyfin.androidtv.macrobenchmark"
 	compileSdk = libs.versions.android.compileSdk.get().toInt()
 
 	defaultConfig {

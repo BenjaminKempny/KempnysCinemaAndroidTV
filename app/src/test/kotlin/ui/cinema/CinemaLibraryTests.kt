@@ -31,6 +31,118 @@ class CinemaLibraryTests : FunSpec({
 	val store = ViewModelStore()
 	afterTest { store.clear() }
 
+	test("empty tabs are cached and sorting reloads only the catalog") {
+		val queries = ConcurrentLinkedQueue<Pair<String, Map<String, Any?>>>()
+		val api = LibraryTestApi { path, query ->
+			queries.add(path to query)
+			libraryResponse(emptyList())
+		}
+		val vm = CinemaHomeViewModel(api, libraryViews())
+		store.put("home", vm)
+		withTimeout(5_000) { vm.state.first { !it.loading } }
+		queries.size shouldBe 3
+		listOf(CinemaView.Collections, CinemaView.Genres).forEach { view ->
+			vm.setView(view)
+			withTimeout(5_000) { vm.state.first { !it.loading } }
+		}
+		queries.size shouldBe 5
+		CinemaView.entries.forEach { view ->
+			vm.setView(view)
+			vm.state.value.loading shouldBe false
+		}
+		queries.size shouldBe 5
+		vm.setView(CinemaView.All)
+		vm.setSort(CinemaSort.Year)
+		withTimeout(5_000) { vm.state.first { !it.loading } }
+		queries.size shouldBe 6
+		queries.last().second["sortBy"] shouldBe setOf(ItemSortBy.PREMIERE_DATE)
+		vm.refresh()
+		withTimeout(5_000) { vm.state.first { !it.loading } }
+		queries.size shouldBe 9
+	}
+
+	test("returning to a cached tab cancels an in-flight load without leaving a spinner") {
+		val started = CompletableDeferred<Unit>()
+		val release = CompletableDeferred<Unit>()
+		val api = LibraryTestApi { _, query ->
+			if (query["includeItemTypes"] == setOf(BaseItemKind.BOX_SET)) {
+				started.complete(Unit)
+				release.await()
+			}
+			libraryResponse(emptyList())
+		}
+		val vm = CinemaHomeViewModel(api, libraryViews())
+		store.put("home", vm)
+		withTimeout(5_000) { vm.state.first { !it.loading } }
+		try {
+			vm.setView(CinemaView.Collections)
+			withTimeout(5_000) { started.await() }
+			vm.state.value.loading shouldBe true
+			vm.setView(CinemaView.All)
+			vm.state.value.loading shouldBe false
+			vm.state.value.loadedViews shouldBe setOf(CinemaView.All)
+		} finally {
+			release.complete(Unit)
+		}
+	}
+
+	test("tab switching cancels pagination and allows it to restart") {
+		val movies = (1..61).map { libraryItem(it, BaseItemKind.MOVIE) }
+		val started = Channel<Unit>(Channel.UNLIMITED)
+		val release = CompletableDeferred<Unit>()
+		val api = LibraryTestApi { path, query ->
+			when {
+				query["startIndex"] == 60 -> {
+					started.send(Unit)
+					release.await()
+					libraryResponse(movies.drop(60), movies.size)
+				}
+				path == "/UserItems/Resume" || query["includeItemTypes"] == setOf(BaseItemKind.BOX_SET) -> libraryResponse(emptyList())
+				else -> libraryResponse(movies.take(60), movies.size)
+			}
+		}
+		val vm = CinemaHomeViewModel(api, libraryViews())
+		store.put("home", vm)
+		withTimeout(5_000) { vm.state.first { !it.loading } }
+		try {
+			vm.loadNextCatalogPage()
+			withTimeout(5_000) { started.receive() }
+			vm.setView(CinemaView.Collections)
+			withTimeout(5_000) { vm.state.first { !it.loading } }
+			vm.setView(CinemaView.All)
+			vm.state.value.catalogLoadingMore shouldBe false
+			vm.loadNextCatalogPage()
+			withTimeout(5_000) { started.receive() }
+		} finally {
+			release.complete(Unit)
+		}
+		withTimeout(5_000) { vm.state.first { it.catalog.size == 61 } }.catalog shouldBe movies
+	}
+
+	test("refresh invalidates collection membership including negative results") {
+		val box = libraryItem(200, BaseItemKind.BOX_SET)
+		val movie = libraryItem(1, BaseItemKind.MOVIE)
+		val probes = ConcurrentLinkedQueue<Unit>()
+		val api = LibraryTestApi { _, query ->
+			when {
+				query["includeItemTypes"] == setOf(BaseItemKind.BOX_SET) -> libraryResponse(listOf(box))
+				query["parentId"] == box.id -> {
+					probes.add(Unit)
+					libraryResponse(if (probes.size == 1) emptyList() else listOf(movie))
+				}
+				else -> libraryResponse(emptyList())
+			}
+		}
+		val vm = CinemaHomeViewModel(api, libraryViews())
+		store.put("home", vm)
+		withTimeout(5_000) { vm.state.first { !it.loading } }
+		vm.setView(CinemaView.Collections)
+		withTimeout(5_000) { vm.state.first { !it.loading } }.collections shouldBe emptyList()
+		vm.refresh()
+		withTimeout(5_000) { vm.state.first { !it.loading } }.collections shouldBe listOf(box)
+		probes.size shouldBe 2
+	}
+
 	test("home starts independent requests in parallel") {
 		val started = Channel<Unit>(Channel.UNLIMITED)
 		val release = CompletableDeferred<Unit>()
@@ -154,7 +266,8 @@ class CinemaLibraryTests : FunSpec({
 			assertFilter()
 			vm.refresh()
 			assertFilter()
-			vm.setSort(CinemaSort.Year)
+			// Collections already default to Year; selecting it again correctly does no work.
+			vm.setSort(CinemaSort.Name)
 			assertFilter()
 		}
 	}

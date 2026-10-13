@@ -62,6 +62,18 @@ fun SettingsCustomizationScreen() {
 		}
 
 		item {
+			var performanceMode by rememberPreference(userPreferences, UserPreferences.cinemaPerformanceModeEnabled)
+
+			ListButton(
+				headingContent = { Text(stringResource(R.string.pref_cinema_performance_mode)) },
+				trailingContent = { Checkbox(checked = performanceMode) },
+				captionContent = { Text(stringResource(R.string.pref_cinema_performance_mode_description)) },
+				onClick = { performanceMode = !performanceMode },
+				modifier = Modifier.focusKey("cinema_performance_mode")
+			)
+		}
+
+		item {
 			var clockBehavior by rememberPreference(userPreferences, UserPreferences.clockBehavior)
 
 			ListButton(

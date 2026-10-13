@@ -7,6 +7,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +15,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.jellyfin.androidtv.data.repository.ItemRepository
 import org.jellyfin.androidtv.data.repository.UserViewsRepository
 import org.jellyfin.sdk.api.client.ApiClient
@@ -24,6 +28,7 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.CollectionType
 import org.jellyfin.sdk.model.api.ItemSortBy
+import org.jellyfin.sdk.model.api.ItemFields
 import org.jellyfin.sdk.model.api.MediaType
 import org.jellyfin.sdk.model.api.SortOrder
 import timber.log.Timber
@@ -65,6 +70,9 @@ data class CinemaHomeState(
 	val collections: List<BaseItemDto> = emptyList(),
 	val genreRows: List<CinemaGenreRow> = emptyList(),
 	val libraryId: UUID? = null,
+	/** Explicit completion markers: an empty response is also a successfully loaded view. */
+	val loadedViews: Set<CinemaView> = emptySet(),
+	val spotlightLoaded: Boolean = false,
 ) {
 	val catalogHasMore get() = catalog.size < catalogTotal
 }
@@ -83,6 +91,7 @@ class CinemaHomeViewModel(
 
 	private var loadJob: Job? = null
 	private var pageJob: Job? = null
+	private val collectionMatchCache = ConcurrentHashMap<Pair<UUID, CinemaMediaType>, Boolean>()
 
 	init {
 		load(force = true)
@@ -103,7 +112,9 @@ class CinemaHomeViewModel(
 
 	fun setSort(sort: CinemaSort) {
 		if (_state.value.sort == sort) return
-		_state.update { it.copy(sort = sort, catalog = emptyList()) }
+		_state.update {
+			it.copy(sort = sort, catalog = emptyList(), catalogTotal = 0, loadedViews = it.loadedViews - CinemaView.All)
+		}
 		load(force = false)
 	}
 
@@ -135,9 +146,21 @@ class CinemaHomeViewModel(
 	private fun load(force: Boolean = true) {
 		loadJob?.cancel()
 		pageJob?.cancel()
+		if (force) collectionMatchCache.clear()
+		// Publish before launching IO: rapid tab switches must not see the old loading flag,
+		// and cancelling pagination must not leave its spinner permanently enabled.
+		_state.update {
+			it.copy(
+				loading = force || it.view !in it.loadedViews,
+				catalogLoadingMore = false,
+				loadedViews = if (force) emptySet() else it.loadedViews,
+				spotlightLoaded = !force && it.spotlightLoaded,
+			)
+		}
+		val snapshot = _state.value
+		if (!snapshot.loading) return
 
 		loadJob = viewModelScope.launch(Dispatchers.IO) {
-			val snapshot = _state.value
 			try {
 				val libraryId = resolveLibraryId(snapshot.mediaType)
 
@@ -147,13 +170,9 @@ class CinemaHomeViewModel(
 
 				when (snapshot.view) {
 					CinemaView.All -> {
-						val needsHero = force || snapshot.hero.isEmpty()
-						val needsResume = force || snapshot.continueWatching.isEmpty()
-						val needsCatalog = force || snapshot.catalog.isEmpty()
-
-						if (!needsHero && !needsResume && !needsCatalog) return@launch
-
-						_state.update { it.copy(loading = true, catalogLoadingMore = false) }
+						val needsHero = !snapshot.spotlightLoaded
+						val needsResume = !snapshot.spotlightLoaded
+						val needsCatalog = CinemaView.All !in snapshot.loadedViews
 
 						val (hero, resume, page) = coroutineScope {
 							val heroDef = async { if (needsHero) loadHero(libraryId, snapshot.mediaType) else snapshot.hero }
@@ -171,14 +190,13 @@ class CinemaHomeViewModel(
 								continueWatching = resume,
 								catalog = page.items,
 								catalogTotal = page.total,
+								loadedViews = it.loadedViews + CinemaView.All,
+								spotlightLoaded = true,
 							)
 						}
 					}
 
 					CinemaView.Collections -> {
-						if (!force && snapshot.collections.isNotEmpty()) return@launch
-
-						_state.update { it.copy(loading = true, catalogLoadingMore = false) }
 						val collections = loadCollections(snapshot.mediaType)
 						ensureActive()
 						_state.update {
@@ -186,14 +204,12 @@ class CinemaHomeViewModel(
 								loading = false,
 								libraryId = libraryId,
 								collections = collections,
+								loadedViews = it.loadedViews + CinemaView.Collections,
 							)
 						}
 					}
 
 					CinemaView.Genres -> {
-						if (!force && snapshot.genreRows.isNotEmpty()) return@launch
-
-						_state.update { it.copy(loading = true, catalogLoadingMore = false) }
 						val rows = loadGenreRows(libraryId, snapshot.mediaType)
 						ensureActive()
 						_state.update {
@@ -201,11 +217,13 @@ class CinemaHomeViewModel(
 								loading = false,
 								libraryId = libraryId,
 								genreRows = rows,
+								loadedViews = it.loadedViews + CinemaView.Genres,
 							)
 						}
 					}
 				}
 			} catch (error: ApiClientException) {
+				ensureActive()
 				Timber.w(error, "Failed to load cinema home")
 				_state.update { it.copy(loading = false) }
 			}
@@ -344,8 +362,6 @@ class CinemaHomeViewModel(
 			.filterNotNull()
 	}
 
-	private val collectionMatchCache = ConcurrentHashMap<Pair<UUID, CinemaMediaType>, Boolean>()
-
 	private suspend fun contains(collectionId: UUID, mediaType: CinemaMediaType): Boolean {
 		val cacheKey = Pair(collectionId, mediaType)
 		collectionMatchCache[cacheKey]?.let { return it }
@@ -360,6 +376,7 @@ class CinemaHomeViewModel(
 				enableTotalRecordCount = false,
 			)
 			val match = result.items.any { it.type == mediaType.itemKind }
+			currentCoroutineContext().ensureActive()
 			collectionMatchCache[cacheKey] = match
 			match
 		} catch (error: ApiClientException) {
@@ -378,7 +395,9 @@ class CinemaHomeViewModel(
 			includeItemTypes = setOf(mediaType.itemKind),
 			collapseBoxSetItems = false,
 			recursive = true,
-			fields = ItemRepository.browseFields,
+			// This sample is used only to discover genres, never to render cards.
+			fields = setOf(ItemFields.GENRES),
+			enableImages = false,
 			limit = GENRE_SAMPLE_SIZE,
 			sortBy = setOf(ItemSortBy.RANDOM),
 			enableTotalRecordCount = false,
@@ -394,38 +413,49 @@ class CinemaHomeViewModel(
 			.map { it.key }
 			.sorted()
 
+		val requests = Semaphore(GENRE_QUERY_CONCURRENCY)
 		genreNames.map { genre ->
 			async {
-				try {
-					val result by itemsApi.getItems(
-						parentId = libraryId,
-						includeItemTypes = setOf(mediaType.itemKind),
-						collapseBoxSetItems = false,
-						recursive = true,
-						genres = listOf(genre),
-						sortBy = setOf(ItemSortBy.PREMIERE_DATE),
-						sortOrder = setOf(SortOrder.DESCENDING),
-						fields = ItemRepository.browseFields,
-						imageTypeLimit = 1,
-						limit = GENRE_ITEM_LIMIT,
-						enableTotalRecordCount = false,
-					)
-					CinemaGenreRow(genre, result.items).takeIf { it.items.isNotEmpty() }
-				} catch (error: ApiClientException) {
-					Timber.w(error, "Failed to load genre row %s", genre)
-					null
+				requests.withPermit {
+					try {
+						val result by itemsApi.getItems(
+							parentId = libraryId,
+							includeItemTypes = setOf(mediaType.itemKind),
+							collapseBoxSetItems = false,
+							recursive = true,
+							genres = listOf(genre),
+							sortBy = setOf(ItemSortBy.PREMIERE_DATE),
+							sortOrder = setOf(SortOrder.DESCENDING),
+							fields = ItemRepository.browseFields,
+							imageTypeLimit = 1,
+							limit = GENRE_ITEM_LIMIT,
+							enableTotalRecordCount = false,
+						)
+						CinemaGenreRow(genre, result.items).takeIf { it.items.isNotEmpty() }
+					} catch (error: ApiClientException) {
+						Timber.w(error, "Failed to load genre row %s", genre)
+						null
+					}
 				}
 			}
 		}.awaitAll().filterNotNull()
 	}
 
-	/** Fetches the full item before navigating to playback, matching the web behaviour. */
-	suspend fun getFullItem(id: UUID): BaseItemDto? = try {
-		val item by api.userLibraryApi.getItem(itemId = id)
-		item
-	} catch (error: ApiClientException) {
-		Timber.w(error, "Failed to load item %s", id)
-		null
+	/**
+	 * Fetches the full item before navigating to playback, matching the web behaviour.
+	 *
+	 * The SDK reads and decodes the response body on the thread the coroutine resumes on.
+	 * Called from the fragment's (main thread) lifecycle scope this used to throw a
+	 * NetworkOnMainThreadException and crash the app when starting a Continue Watching item.
+	 */
+	suspend fun getFullItem(id: UUID): BaseItemDto? = withContext(Dispatchers.IO) {
+		try {
+			val item by api.userLibraryApi.getItem(itemId = id)
+			item
+		} catch (error: ApiClientException) {
+			Timber.w(error, "Failed to load item %s", id)
+			null
+		}
 	}
 
 	fun posterUrl(item: BaseItemDto): String? = item.cinemaPosterUrl(api, POSTER_IMAGE_WIDTH)
@@ -467,6 +497,7 @@ class CinemaHomeViewModel(
 		const val COLLECTION_LIMIT = 200
 		const val COLLECTION_PROBE_CHUNK = 8
 		const val GENRE_ROW_LIMIT = 12
+		const val GENRE_QUERY_CONCURRENCY = 4
 		const val GENRE_ITEM_LIMIT = 20
 		const val GENRE_SAMPLE_SIZE = 300
 		const val POSTER_IMAGE_WIDTH = 360

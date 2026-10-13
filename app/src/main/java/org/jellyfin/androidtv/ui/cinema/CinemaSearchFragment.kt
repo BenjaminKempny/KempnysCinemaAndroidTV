@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.fragment.app.Fragment
 import androidx.fragment.compose.content
-import org.jellyfin.androidtv.ui.base.JellyfinTheme
 import org.jellyfin.androidtv.ui.navigation.Destinations
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
 import org.jellyfin.androidtv.ui.playback.PlaybackLauncher
@@ -49,7 +48,7 @@ class CinemaSearchFragment : Fragment() {
 		var query by rememberSaveable { mutableStateOf(arguments?.getString(ARGUMENT_QUERY).orEmpty()) }
 		LaunchedEffect(Unit) { if (query.isNotBlank()) viewModel.searchImmediately(query) }
 
-		JellyfinTheme {
+		CinemaTheme {
 			CinemaSearchScreen(
 				query = query,
 				results = results,

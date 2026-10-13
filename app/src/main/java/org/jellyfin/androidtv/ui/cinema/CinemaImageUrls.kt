@@ -49,3 +49,12 @@ fun BaseItemDto.cinemaThumbUrl(api: ApiClient, width: Int): String? =
 fun BaseItemDto.cinemaBackdropUrl(api: ApiClient, width: Int): String? =
 	cinemaBackdropImage?.getUrl(api, maxWidth = width)
 
+/**
+ * Heavily blurred, low resolution backdrop used as the full page background of the
+ * detail / collection screens. The blur is rendered by the server so it works on every
+ * Android TV device (Compose's `Modifier.blur` requires Android 12) and costs nothing
+ * on the client.
+ */
+fun BaseItemDto.cinemaBlurredBackdropUrl(api: ApiClient, width: Int, blur: Int): String? =
+	cinemaBackdropImage?.getUrl(api, maxWidth = width, blur = blur)
+

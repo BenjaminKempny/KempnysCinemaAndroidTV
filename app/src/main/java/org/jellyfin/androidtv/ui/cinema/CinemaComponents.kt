@@ -33,7 +33,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
@@ -377,10 +379,16 @@ fun CinemaSectionTitle(
 	overflow = TextOverflow.Ellipsis,
 )
 
-/** Full-bleed cinema page background (`--cinema-page-bg`). */
+/**
+ * Full-bleed cinema page background (`--cinema-page-bg`).
+ *
+ * When a [backdropUrl] is given (detail and collection pages) the blurred artwork of the
+ * item fills the page and a palette-tinted scrim keeps the content readable in both themes.
+ */
 @Composable
 fun CinemaBackground(
 	modifier: Modifier = Modifier,
+	backdropUrl: String? = null,
 	content: @Composable () -> Unit,
 ) {
 	val performanceMode = LocalCinemaPerformanceMode.current
@@ -390,9 +398,35 @@ fun CinemaBackground(
 			.background(CinemaColors.PageBase)
 			.then(if (performanceMode) Modifier else Modifier.background(CinemaColors.PageBackground)),
 	) {
+		if (backdropUrl != null) {
+			CinemaAsyncImage(
+				model = backdropUrl,
+				contentDescription = null,
+				contentScale = ContentScale.Crop,
+				modifier = Modifier.fillMaxSize(),
+			)
+
+			val base = CinemaColors.PageBase
+			Box(
+				modifier = Modifier
+					.fillMaxSize()
+					.background(
+						Brush.verticalGradient(
+							0f to base.copy(alpha = BACKDROP_SCRIM_TOP),
+							0.5f to base.copy(alpha = BACKDROP_SCRIM_MID),
+							1f to base.copy(alpha = BACKDROP_SCRIM_BOTTOM),
+						)
+					),
+			)
+		}
+
 		content()
 	}
 }
+
+private const val BACKDROP_SCRIM_TOP = 0.45f
+private const val BACKDROP_SCRIM_MID = 0.65f
+private const val BACKDROP_SCRIM_BOTTOM = 0.88f
 
 internal val CinemaContentPadding = PaddingValues(
 	horizontal = CinemaDimens.Overscan,

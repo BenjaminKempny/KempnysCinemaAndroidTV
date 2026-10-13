@@ -24,6 +24,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,6 +46,10 @@ import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.BaseItemPerson
 import org.jellyfin.sdk.model.api.PersonKind
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.time.temporal.ChronoUnit
 
 data class CinemaDetailActions(
 	val onBack: () -> Unit,
@@ -54,6 +59,8 @@ data class CinemaDetailActions(
 	/** Plays a specific episode (next up card, episode list). */
 	val onPlayItem: (BaseItemDto) -> Unit,
 	val onOpenItem: (BaseItemDto) -> Unit,
+	/** Opens the detail page of a cast or crew member. */
+	val onOpenPerson: (BaseItemPerson) -> Unit,
 	val onSelectSort: (CinemaSort) -> Unit,
 )
 
@@ -78,12 +85,13 @@ fun CinemaDetailScreen(
 ) {
 	val item = state.item
 	val playFocusRequester = remember { FocusRequester() }
+	var contentWarningsExpanded by rememberSaveable(item?.id) { mutableStateOf(false) }
 
-	LaunchedEffect(item?.id, state.isCollection) {
+	LaunchedEffect(item?.id, state.isCollection, personFocusReady(state)) {
 		if (item != null && !state.isCollection) runCatching { playFocusRequester.requestFocus() }
 	}
 
-	CinemaBackground(modifier) {
+	CinemaBackground(modifier, backdropUrl = state.blurredBackdropUrl) {
 		CinemaLazyColumn(
 			modifier = Modifier
 				.fillMaxSize()
@@ -125,6 +133,8 @@ fun CinemaDetailScreen(
 						thumbUrl = thumbUrl,
 						personImageUrl = personImageUrl,
 						playFocusRequester = playFocusRequester,
+						contentWarningsExpanded = contentWarningsExpanded,
+						onToggleContentWarnings = { contentWarningsExpanded = !contentWarningsExpanded },
 					)
 				}
 			}
@@ -219,7 +229,12 @@ private fun LazyListScope.detailContent(
 	thumbUrl: (BaseItemDto) -> String?,
 	personImageUrl: (BaseItemPerson) -> String?,
 	playFocusRequester: FocusRequester,
+	contentWarningsExpanded: Boolean,
+	onToggleContentWarnings: () -> Unit,
 ) {
+	val isPerson = detailItem.type == BaseItemKind.PERSON
+	val hasOverview = !detailItem.overview.isNullOrBlank() || !detailItem.tags.isNullOrEmpty()
+
 	item(key = "hero") {
 		CinemaDetailHero(
 			item = detailItem,
@@ -229,15 +244,36 @@ private fun LazyListScope.detailContent(
 		)
 	}
 
-	item(key = "ribbon") { CinemaDetailRibbon(detailItem) }
+	if (!isPerson) item(key = "ribbon") { CinemaDetailRibbon(detailItem) }
 
-	if (!detailItem.overview.isNullOrBlank() || !detailItem.tags.isNullOrEmpty()) {
-		item(key = "overview") { CinemaDetailOverview(detailItem) }
+	state.contentWarnings?.let { warnings ->
+		contentWarningsSection(
+			result = warnings,
+			expanded = contentWarningsExpanded,
+			onToggle = onToggleContentWarnings,
+		)
+	}
+
+	if (hasOverview) {
+		item(key = "overview") {
+			CinemaDetailOverview(
+				item = detailItem,
+				// People have no play button: the biography takes the initial focus instead.
+				focusRequester = if (isPerson) playFocusRequester else null,
+			)
+		}
 	}
 
 	when (detailItem.type) {
 		BaseItemKind.SERIES -> seriesSections(state, actions, posterUrl, thumbUrl)
 		BaseItemKind.SEASON -> episodeList(state, actions, thumbUrl)
+		BaseItemKind.PERSON -> filmography(
+			state = state,
+			actions = actions,
+			posterUrl = posterUrl,
+			firstItemFocusRequester = if (hasOverview) null else playFocusRequester,
+		)
+
 		else -> Unit
 	}
 
@@ -257,13 +293,66 @@ private fun LazyListScope.detailContent(
 							name = person.name.orEmpty(),
 							role = person.role?.takeIf { it.isNotBlank() } ?: person.type.label(),
 							imageUrl = personImageUrl(person),
-							onClick = {},
+							onClick = { actions.onOpenPerson(person) },
 						)
 					}
 				}
 			}
 		}
 	}
+}
+
+/** All movies and series a person appears in, as a sortable poster grid. */
+private fun LazyListScope.filmography(
+	state: CinemaDetailState,
+	actions: CinemaDetailActions,
+	posterUrl: (BaseItemDto) -> String?,
+	firstItemFocusRequester: FocusRequester?,
+) {
+	item(key = "filmography-title") {
+		Row(
+			modifier = Modifier.fillMaxWidth(),
+			verticalAlignment = Alignment.CenterVertically,
+		) {
+			CinemaSectionTitle(
+				text = stringResource(R.string.cinema_filmography),
+				modifier = Modifier.weight(1f),
+			)
+
+			if (state.children.isNotEmpty()) {
+				CinemaSortSelector(sort = state.sort, onSelect = actions.onSelectSort)
+			}
+		}
+	}
+
+	if (state.children.isEmpty()) {
+		if (!state.loading) {
+			item(key = "filmography-empty") {
+				Text(
+					text = stringResource(R.string.cinema_empty),
+					color = CinemaColors.Muted,
+					fontSize = CinemaDimens.BodySize,
+				)
+			}
+		}
+		return
+	}
+
+	cinemaGrid(
+		items = state.children,
+		posterUrl = posterUrl,
+		onOpenItem = actions.onOpenItem,
+		keyPrefix = "filmography",
+		firstItemFocusRequester = firstItemFocusRequester,
+	)
+}
+
+/** Key that changes once the person page has something to focus initially. */
+private fun personFocusReady(state: CinemaDetailState): Boolean {
+	val item = state.item ?: return false
+	if (!state.isPerson) return false
+	val hasOverview = !item.overview.isNullOrBlank() || !item.tags.isNullOrEmpty()
+	return hasOverview || state.children.isNotEmpty()
 }
 
 private fun LazyListScope.seriesSections(
@@ -424,19 +513,50 @@ private fun CinemaDetailHero(
 					)
 				}
 
-				CinemaDetailMeta(item)
+				if (item.type == BaseItemKind.PERSON) {
+					CinemaPersonMeta(item)
+				} else {
+					CinemaDetailMeta(item)
 
-				val target = state.playTarget
-				val resumable = (target?.userData?.playbackPositionTicks ?: 0L) > 0L
-				CinemaButton(
-					text = stringResource(if (resumable) R.string.cinema_resume else R.string.lbl_play),
-					icon = painterResource(if (resumable) R.drawable.ic_resume else R.drawable.ic_play),
-					primary = true,
-					onClick = onPlay,
-					modifier = Modifier.focusRequester(playFocusRequester),
-				)
+					val target = state.playTarget
+					val resumable = (target?.userData?.playbackPositionTicks ?: 0L) > 0L
+					CinemaButton(
+						text = stringResource(if (resumable) R.string.cinema_resume else R.string.lbl_play),
+						icon = painterResource(if (resumable) R.drawable.ic_resume else R.drawable.ic_play),
+						primary = true,
+						onClick = onPlay,
+						modifier = Modifier.focusRequester(playFocusRequester),
+					)
+				}
 			}
 		}
+	}
+}
+
+/** Birthday with age (or lifespan) and birthplace of a person. */
+@Composable
+private fun CinemaPersonMeta(item: BaseItemDto) {
+	val dateFormat = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
+	val birthDate = item.premiereDate
+	val deathDate = item.endDate
+
+	val lines = buildList {
+		if (birthDate != null) {
+			val age = ChronoUnit.YEARS.between(birthDate, deathDate ?: LocalDateTime.now())
+			add(stringResource(R.string.person_birthday_and_age, birthDate.format(dateFormat), age))
+		}
+		if (deathDate != null) add(stringResource(R.string.cinema_died, deathDate.format(dateFormat)))
+		item.productionLocations?.firstOrNull()?.takeIf { it.isNotBlank() }?.let(::add)
+	}
+
+	lines.forEach { line ->
+		Text(
+			text = line,
+			color = CinemaColors.OnMedia,
+			fontSize = CinemaDimens.MetaSize,
+			maxLines = 1,
+			overflow = TextOverflow.Ellipsis,
+		)
 	}
 }
 
@@ -530,7 +650,10 @@ private fun CinemaDetailRibbon(item: BaseItemDto) {
  * the play button scrolls the description into view instead of jumping past it.
  */
 @Composable
-private fun CinemaDetailOverview(item: BaseItemDto) {
+private fun CinemaDetailOverview(
+	item: BaseItemDto,
+	focusRequester: FocusRequester? = null,
+) {
 	var focused by remember { mutableStateOf(false) }
 
 	Box(
@@ -543,6 +666,7 @@ private fun CinemaDetailOverview(item: BaseItemDto) {
 				color = if (focused) CinemaColors.Focus else CinemaColors.Border,
 				shape = CinemaDimens.PanelShape,
 			)
+			.then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
 			.onFocusChanged { focused = it.isFocused }
 			.focusable(),
 	) {

@@ -25,7 +25,6 @@ import org.jellyfin.androidtv.auth.model.ServerUnavailableState
 import org.jellyfin.androidtv.auth.model.ServerVersionNotSupported
 import org.jellyfin.androidtv.auth.repository.ServerRepository
 import org.jellyfin.androidtv.auth.repository.SessionRepository
-import org.jellyfin.androidtv.ui.base.JellyfinTheme
 import org.jellyfin.androidtv.ui.navigation.ActivityDestinations
 import org.jellyfin.androidtv.ui.navigation.Destinations
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
@@ -52,7 +51,7 @@ class CinemaProfileFragment : Fragment() {
 	) = content {
 		val state by viewModel.state.collectAsState()
 
-		JellyfinTheme {
+		CinemaTheme {
 			CinemaProfileScreen(
 				state = state,
 				actions = CinemaProfileActions(

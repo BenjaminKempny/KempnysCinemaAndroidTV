@@ -5,8 +5,6 @@ import androidx.benchmark.macro.StartupMode
 import androidx.benchmark.macro.StartupTimingMetric
 import androidx.benchmark.macro.junit4.MacrobenchmarkRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.uiautomator.By
-import androidx.test.uiautomator.Until
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -25,7 +23,7 @@ class StartupBenchmark {
 
 	private fun startup(compilationMode: CompilationMode) {
 		benchmarkRule.measureRepeated(
-			packageName = "org.jellyfin.androidtv.benchmark",
+			packageName = CINEMA_PACKAGE,
 			metrics = listOf(StartupTimingMetric()),
 			compilationMode = compilationMode,
 			iterations = 5,
@@ -34,9 +32,7 @@ class StartupBenchmark {
 				pressHome()
 			}
 		) {
-			startActivityAndWait()
-			// Wait for the app to actually display something meaningful before stopping the timer
-			device.wait(Until.hasObject(By.res("android:id/content")), 10_000)
+			startCinemaHome()
 		}
 	}
 }

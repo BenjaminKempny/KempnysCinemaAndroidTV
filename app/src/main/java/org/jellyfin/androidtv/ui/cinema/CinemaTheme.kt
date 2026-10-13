@@ -1,11 +1,27 @@
 package org.jellyfin.androidtv.ui.cinema
 
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import org.jellyfin.androidtv.preference.UserPreferences
+import org.jellyfin.androidtv.ui.base.JellyfinTheme
+import org.jellyfin.androidtv.ui.settings.compat.rememberPreference
+import org.koin.compose.koinInject
+
+/** Each fragment owns a composition, including screens opened outside the home shell. */
+@Composable
+fun CinemaTheme(content: @Composable () -> Unit) {
+	val preferences = koinInject<UserPreferences>()
+	val performanceMode by rememberPreference(preferences, UserPreferences.cinemaPerformanceModeEnabled)
+	CompositionLocalProvider(LocalCinemaPerformanceMode provides performanceMode) {
+		JellyfinTheme(content = content)
+	}
+}
 
 /**
  * A full set of colour tokens for the cinema design. Two implementations exist: the ported
@@ -207,4 +223,3 @@ object CinemaThemeState {
 			if (next != palette) palette = next
 		}
 }
-

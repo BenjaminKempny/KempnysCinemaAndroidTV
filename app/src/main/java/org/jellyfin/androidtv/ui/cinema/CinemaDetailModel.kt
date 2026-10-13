@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import org.jellyfin.androidtv.data.contentwarning.ContentWarningRepository
+import org.jellyfin.androidtv.data.contentwarning.ContentWarningResult
 import org.jellyfin.androidtv.data.repository.ItemRepository
 import org.jellyfin.androidtv.util.apiclient.getUrl
 import org.jellyfin.androidtv.util.apiclient.primaryImage
@@ -21,6 +23,8 @@ import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.BaseItemPerson
+import org.jellyfin.sdk.model.api.ItemSortBy
+import org.jellyfin.sdk.model.api.SortOrder
 import timber.log.Timber
 import java.util.UUID
 
@@ -28,15 +32,23 @@ data class CinemaDetailState(
 	val loading: Boolean = true,
 	val item: BaseItemDto? = null,
 	val backdropUrl: String? = null,
+	/** Strongly blurred artwork filling the whole page behind the content. */
+	val blurredBackdropUrl: String? = null,
 	val posterUrl: String? = null,
 	/** Seasons for a series, episodes for a season, members for a collection — empty for movies. */
 	val children: List<BaseItemDto> = emptyList(),
 	/** The episode to continue with (series only). */
 	val nextUp: BaseItemDto? = null,
-	val sort: CinemaSort = CinemaSort.Name,
+	/** Collections default to release date ascending (oldest first). */
+	val sort: CinemaSort = CinemaSort.Year,
+	/** DoesTheDogDie content warnings — movies only, `null` for every other item type. */
+	val contentWarnings: ContentWarningResult? = null,
 ) {
 	/** Collections render as a plain library grid instead of the media detail capsule. */
 	val isCollection get() = item?.type == BaseItemKind.BOX_SET
+
+	/** People show their filmography instead of a play button. */
+	val isPerson get() = item?.type == BaseItemKind.PERSON
 
 	/**
 	 * The item the play button starts: the next up episode of a series, the first
@@ -56,6 +68,7 @@ data class CinemaDetailState(
 /** Data layer for the cinema detail screen (spec §2.5). */
 class CinemaDetailViewModel(
 	private val api: ApiClient,
+	private val contentWarningRepository: ContentWarningRepository? = null,
 ) : ViewModel() {
 	private val _state = MutableStateFlow(CinemaDetailState())
 	val state: StateFlow<CinemaDetailState> = _state.asStateFlow()
@@ -78,12 +91,14 @@ class CinemaDetailViewModel(
 						loading = false,
 						item = item,
 						backdropUrl = backdropUrl(item),
+						blurredBackdropUrl = item.cinemaBlurredBackdropUrl(api, BLURRED_BACKDROP_WIDTH, BLURRED_BACKDROP_RADIUS),
 						posterUrl = heroPosterUrl(item),
 					)
 				}
 
 				loadChildren(item)
 				if (item.type == BaseItemKind.SERIES) loadNextUp(item.id)
+				if (item.type == BaseItemKind.MOVIE) loadContentWarnings(item)
 			} catch (error: ApiClientException) {
 				Timber.w(error, "Failed to load cinema detail item")
 				_state.update { it.copy(loading = false) }
@@ -134,15 +149,46 @@ class CinemaDetailViewModel(
 				BaseItemKind.BOX_SET -> {
 					val itemTypes = collectionMediaType?.let { setOf(it.itemKind) }
 						?: setOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
+					// Inside a collection the default sort runs chronologically by release date
+					// (oldest release first). The production year only breaks ties for items
+					// without a premiere date.
+					val sortOrder = if (sort == CinemaSort.Year) SortOrder.ASCENDING else sort.sortOrder
+					val sortBy = if (sort == CinemaSort.Year) {
+						listOf(ItemSortBy.PREMIERE_DATE, ItemSortBy.PRODUCTION_YEAR, ItemSortBy.SORT_NAME)
+					} else {
+						listOf(sort.sortBy)
+					}
 					val result by api.itemsApi.getItems(
 						parentId = item.id,
 						includeItemTypes = itemTypes,
 						collapseBoxSetItems = false,
 						recursive = true,
-						sortBy = setOf(sort.sortBy),
-						sortOrder = setOf(sort.sortOrder),
+						sortBy = sortBy,
+						sortOrder = sortBy.map { sortOrder },
 						fields = ItemRepository.browseFields,
 						imageTypeLimit = 1,
+						enableTotalRecordCount = false,
+					)
+					result.items.filter { it.type in itemTypes }
+				}
+
+				BaseItemKind.PERSON -> {
+					// Filmography: every movie and series the person is credited in.
+					val itemTypes = setOf(BaseItemKind.MOVIE, BaseItemKind.SERIES)
+					val sortBy = if (sort == CinemaSort.Year) {
+						listOf(ItemSortBy.PREMIERE_DATE, ItemSortBy.PRODUCTION_YEAR, ItemSortBy.SORT_NAME)
+					} else {
+						listOf(sort.sortBy)
+					}
+					val result by api.itemsApi.getItems(
+						personIds = setOf(item.id),
+						includeItemTypes = itemTypes,
+						recursive = true,
+						sortBy = sortBy,
+						sortOrder = sortBy.map { sort.sortOrder },
+						fields = ItemRepository.browseFields,
+						imageTypeLimit = 1,
+						enableUserData = true,
 						enableTotalRecordCount = false,
 					)
 					result.items.filter { it.type in itemTypes }
@@ -157,6 +203,22 @@ class CinemaDetailViewModel(
 			}
 		}.onFailure {
 			Timber.w(it, "Failed to load cinema detail children")
+		}
+	}
+
+	private suspend fun loadContentWarnings(item: BaseItemDto) {
+		val repository = contentWarningRepository ?: return
+		// Keep already loaded warnings visible while refreshing after playback.
+		if (_state.value.contentWarnings !is ContentWarningResult.Available) {
+			_state.update { it.copy(contentWarnings = ContentWarningResult.Loading) }
+		}
+
+		val result = runCatching { repository.getWarnings(item) }
+			.onFailure { Timber.w(it, "Failed to load content warnings") }
+			.getOrDefault(ContentWarningResult.Error)
+
+		_state.update { current ->
+			if (current.item?.id == item.id) current.copy(contentWarnings = result) else current
 		}
 	}
 
@@ -200,6 +262,8 @@ class CinemaDetailViewModel(
 		const val THUMB_WIDTH = 480
 		const val PERSON_WIDTH = 240
 		const val BACKDROP_WIDTH = 1600
+		// Small source + strong blur: cheap to transfer and smooth when scaled up.
+		const val BLURRED_BACKDROP_WIDTH = 480
+		const val BLURRED_BACKDROP_RADIUS = 30
 	}
 }
-

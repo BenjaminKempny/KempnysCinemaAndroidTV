@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name_release" translatable="false" tools:ignore="UnusedResources">Kempny Cinema</string>
-    <string name="app_name_debug" translatable="false" tools:ignore="UnusedResources">Kempny Cinema</string>
+    <string name="app_name_release" translatable="false" tools:ignore="UnusedResources">Kempny Kino</string>
+    <string name="app_name_debug" translatable="false" tools:ignore="UnusedResources">Kempny Kino</string>
     <string name="video_error_unknown_error">Failed to load video</string>
     <string name="loading">Loading…</string>
     <string name="btn_cancel">Cancel</string>
@@ -711,7 +711,34 @@
     <string name="cinema_show_all">All</string>
     <string name="cinema_sort_name">Name</string>
     <string name="cinema_sort_added">Recently added</string>
-    <string name="cinema_sort_year">Year</string>
+    <string name="cinema_sort_year">Release date</string>
+    <string name="content_warnings_title">Content warnings</string>
+    <string name="content_warnings_expand">Show content warnings</string>
+    <string name="content_warnings_collapse">Hide content warnings</string>
+    <string name="content_warnings_loading">Loading content warnings…</string>
+    <string name="content_warnings_not_found">No content warnings available for this movie on DoesTheDogDie.</string>
+    <string name="content_warnings_missing_ids">Content warnings unavailable: this movie has no IMDb or TMDB id.</string>
+    <string name="content_warnings_not_configured">Content warnings unavailable: no valid DoesTheDogDie API key configured.</string>
+    <string name="content_warnings_error">Content warnings could not be loaded. Please try again later.</string>
+    <string name="content_warnings_none_reported">Nothing reported</string>
+    <string name="content_warnings_category_empty">No reports in this category.</string>
+    <string name="content_warnings_category_sex">Sex &amp; nudity</string>
+    <string name="content_warnings_category_violence">Violence</string>
+    <string name="content_warnings_category_language">Profanity</string>
+    <string name="content_warnings_category_drugs">Drugs</string>
+    <string name="content_warnings_category_frightening">Frightening scenes</string>
+    <string name="content_warnings_category_other">Other</string>
+    <string name="content_warnings_severity_none">None</string>
+    <string name="content_warnings_severity_mild">Mild</string>
+    <string name="content_warnings_severity_moderate">Moderate</string>
+    <string name="content_warnings_severity_severe">Severe</string>
+    <string name="content_warnings_votes">%1$d yes · %2$d no</string>
+    <string name="content_warnings_spoiler">[Spoiler] %1$s</string>
+    <string name="content_warnings_source">Source: DoesTheDogDie.com community votes (%1$s)</string>
+    <plurals name="content_warnings_timestamps">
+        <item quantity="one">Timestamp: %1$s</item>
+        <item quantity="other">Timestamps: %1$s</item>
+    </plurals>
     <string name="cinema_collections_subtitle">Your collections, curated by you.</string>
     <string name="cinema_empty">Nothing here yet.</string>
     <string name="cinema_previous">Previous</string>
@@ -726,6 +753,8 @@
     <string name="cinema_audio">Audio</string>
     <string name="cinema_ends_at">Ends at %1$s</string>
     <string name="cinema_tags">Tags:</string>
+    <string name="cinema_filmography">Filmography</string>
+    <string name="cinema_died">Died %1$s</string>
     <string name="cinema_profile_accounts">Accounts on this server</string>
     <string name="cinema_profile_signed_in">Signed in as</string>
     <string name="cinema_profile_requires_login">Password required</string>

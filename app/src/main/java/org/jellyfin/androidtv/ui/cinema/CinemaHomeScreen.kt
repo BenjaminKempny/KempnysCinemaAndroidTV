@@ -34,8 +34,11 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -125,6 +128,11 @@ fun CinemaHomeScreen(
 			CinemaShell(
 				modifier = Modifier
 					.fillMaxSize()
+					.semantics { testTagsAsResourceId = true }
+					.testTag(
+						if (!state.loading && state.view == CinemaView.All && state.catalog.isNotEmpty()) "cinema-home-ready"
+						else "cinema-home"
+					)
 					.padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 24.dp),
 			) {
 				BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -229,12 +237,14 @@ private fun CinemaHeader(
 	) {
 		Box(Modifier.fillMaxWidth()) {
 			Image(
-				painter = painterResource(R.drawable.kempnys_logo),
+				painter = painterResource(
+					if (CinemaThemeState.isLight) R.drawable.kempnys_logo_header_light
+					else R.drawable.kempnys_logo_header
+				),
 				contentDescription = null,
 				modifier = Modifier
 					.align(Alignment.CenterStart)
-					.size(52.dp)
-					.clip(CinemaDimens.CardShape),
+					.size(52.dp),
 			)
 
 			CinemaTabRow(

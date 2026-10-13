@@ -29,11 +29,7 @@ import kotlinx.coroutines.launch
 import org.jellyfin.androidtv.auth.repository.ServerRepository
 import org.jellyfin.androidtv.auth.repository.SessionRepository
 import org.jellyfin.androidtv.data.repository.NotificationsRepository
-import androidx.compose.runtime.CompositionLocalProvider
-import org.jellyfin.androidtv.preference.UserPreferences
-import org.jellyfin.androidtv.ui.base.JellyfinTheme
 import org.jellyfin.androidtv.ui.navigation.Destinations
-import org.jellyfin.androidtv.ui.settings.compat.rememberPreference
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
 import org.jellyfin.androidtv.ui.playback.PlaybackLauncher
 import org.jellyfin.androidtv.ui.settings.compat.SettingsViewModel
@@ -53,7 +49,7 @@ class CinemaHomeFragment : Fragment() {
 	private val sessionRepository by inject<SessionRepository>()
 	private val serverRepository by inject<ServerRepository>()
 	private val notificationRepository by inject<NotificationsRepository>()
-	private val userPreferences by inject<UserPreferences>()
+	private var playJob: kotlinx.coroutines.Job? = null
 
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -65,7 +61,6 @@ class CinemaHomeFragment : Fragment() {
 		val searchState = rememberFragmentState()
 		val profileState = rememberFragmentState()
 		val embeddedArguments = remember { Bundle().apply { putBoolean(CINEMA_EMBEDDED, true) } }
-		val performanceMode by rememberPreference(userPreferences, UserPreferences.cinemaPerformanceModeEnabled)
 
 		val returnHome = {
 			selectedRail = if (state.mediaType == CinemaMediaType.Movies) CinemaRailItem.Movies else CinemaRailItem.Shows
@@ -91,30 +86,28 @@ class CinemaHomeFragment : Fragment() {
 		}
 		BackHandler(enabled = secondaryContent != null) { returnHome() }
 
-		CompositionLocalProvider(LocalCinemaPerformanceMode provides performanceMode) {
-			JellyfinTheme {
-				CinemaHomeScreen(
-					state = state,
-					actions = CinemaHomeActions(
-						onOpenItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
-						onPlayItem = ::play,
-						onOpenHeroItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
-						onPlayHeroItem = { hero -> playById(hero.id) },
-						// Secondary actions are not part of the card's focus target, they open
-						// the detail screen where the full action row lives (spec §2.7).
-						onItemMenu = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
-						onRailSelect = { selectedRail = it; onRailSelect(it) },
-					),
-					posterUrl = viewModel::posterUrl,
-					thumbUrl = viewModel::thumbUrl,
-					onSelectView = viewModel::setView,
-					onSelectSort = viewModel::setSort,
-					onLoadNextPage = viewModel::loadNextCatalogPage,
-					modifier = Modifier.fillMaxSize(),
-					selectedRailItem = selectedRail,
-					secondaryContent = secondaryContent,
-				)
-			}
+		CinemaTheme {
+			CinemaHomeScreen(
+				state = state,
+				actions = CinemaHomeActions(
+					onOpenItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
+					onPlayItem = ::play,
+					onOpenHeroItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
+					onPlayHeroItem = { hero -> playById(hero.id) },
+					// Secondary actions are not part of the card's focus target, they open
+					// the detail screen where the full action row lives (spec §2.7).
+					onItemMenu = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
+					onRailSelect = { selectedRail = it; onRailSelect(it) },
+				),
+				posterUrl = viewModel::posterUrl,
+				thumbUrl = viewModel::thumbUrl,
+				onSelectView = viewModel::setView,
+				onSelectSort = viewModel::setSort,
+				onLoadNextPage = viewModel::loadNextCatalogPage,
+				modifier = Modifier.fillMaxSize(),
+				selectedRailItem = selectedRail,
+				secondaryContent = secondaryContent,
+			)
 		}
 	}
 
@@ -152,14 +145,21 @@ class CinemaHomeFragment : Fragment() {
 	private fun play(item: org.jellyfin.sdk.model.api.BaseItemDto) = playById(item.id)
 
 	private fun playById(id: java.util.UUID) {
-		viewLifecycleOwner.lifecycleScope.launch {
+		// Ignore repeated clicks while the item is still being fetched.
+		if (playJob?.isActive == true) return
+		val owner = view?.let { viewLifecycleOwner } ?: return
+
+		playJob = owner.lifecycleScope.launch {
 			val item = viewModel.getFullItem(id) ?: return@launch
+			val context = context ?: return@launch
+			if (!isAdded) return@launch
+
 			val position = item.userData?.playbackPositionTicks
 				?.takeIf { it > 0L }
 				?.let { (it / TICKS_PER_MILLISECOND).toInt() }
 
 			playbackLauncher.launch(
-				context = requireContext(),
+				context = context,
 				items = listOf(item),
 				position = position,
 			)

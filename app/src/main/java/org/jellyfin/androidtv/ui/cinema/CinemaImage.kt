@@ -37,10 +37,11 @@ fun CinemaAsyncImage(
 ) {
 	val imageLoader = koinInject<ImageLoader>()
 	val context = LocalContext.current
-	val request = remember(context, model) {
+	val reducedMotion = rememberReducedMotion()
+	val request = remember(context, model, reducedMotion) {
 		ImageRequest.Builder(context)
 			.data(model)
-			.crossfade(CinemaMotion.ImageCrossfadeDuration)
+			.crossfade(if (reducedMotion) 0 else CinemaMotion.ImageCrossfadeDuration)
 			.build()
 	}
 

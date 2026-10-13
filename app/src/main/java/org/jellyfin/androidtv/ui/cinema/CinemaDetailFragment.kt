@@ -9,7 +9,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.fragment.app.Fragment
 import androidx.fragment.compose.content
-import org.jellyfin.androidtv.ui.base.JellyfinTheme
 import org.jellyfin.androidtv.ui.navigation.Destinations
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
 import org.jellyfin.androidtv.ui.playback.PlaybackLauncher
@@ -46,7 +45,7 @@ class CinemaDetailFragment : Fragment() {
 	) = content {
 		val state by viewModel.state.collectAsState()
 
-		JellyfinTheme {
+		CinemaTheme {
 			CinemaDetailScreen(
 				state = state,
 				actions = CinemaDetailActions(
@@ -55,6 +54,9 @@ class CinemaDetailFragment : Fragment() {
 					onPlay = { viewModel.state.value.playTarget?.let(::play) },
 					onPlayItem = ::play,
 					onOpenItem = ::openItem,
+					onOpenPerson = { person ->
+						navigationRepository.navigate(Destinations.itemDetails(person.id))
+					},
 					onSelectSort = viewModel::setSort,
 				),
 				posterUrl = viewModel::posterUrl,

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The debug variant's generated app_name alias is also included in the test APK. -->
+    <string name="app_name_debug" translatable="false">Cinema UI tests</string>
+</resources>

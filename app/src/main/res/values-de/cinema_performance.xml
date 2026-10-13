@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="pref_cinema_performance_mode">Cinema-Performance-Modus</string>
+    <string name="pref_cinema_performance_mode_description">Animationen reduzieren, automatischen Spotlight-Wechsel abschalten und dekorative Hintergründe vereinfachen. Posterqualität und Fokusrahmen bleiben erhalten.</string>
+</resources>

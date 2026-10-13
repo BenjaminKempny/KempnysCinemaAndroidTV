@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
 	alias(libs.plugins.aboutlibraries)
 	alias(libs.plugins.android.application)
@@ -12,11 +14,23 @@ android {
 	defaultConfig {
 		minSdk = libs.versions.android.minSdk.get().toInt()
 		targetSdk = libs.versions.android.targetSdk.get().toInt()
+		testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
 		// Release version
 		applicationId = namespace
 		versionName = project.getVersionName()
 		versionCode = getVersionCode(versionName!!)
+
+		// DoesTheDogDie API key (content warnings). Read from `dtdd.api.key` in
+		// local.properties, a Gradle property or the DTDD_API_KEY environment variable.
+		val localProperties = Properties().apply {
+			val file = rootProject.file("local.properties")
+			if (file.exists()) file.inputStream().use { load(it) }
+		}
+		val dtddApiKey = getProperty("dtdd.api.key")
+			?: localProperties.getProperty("dtdd.api.key")
+			?: ""
+		buildConfigField("String", "DTDD_API_KEY", "\"${dtddApiKey.trim().replace("\"", "")}\"")
 	}
 
 	buildFeatures {
@@ -74,7 +88,8 @@ android {
 			initWith(buildTypes.getByName("release"))
 			matchingFallbacks += listOf("release")
 
-			// Benchmark requires release-like performance but a debuggable signature to connect
+				// Keep release optimizations, but use the local debug key for device installation.
+				isDebuggable = false
 			signingConfig = signingConfigs.getByName("debug")
 
 			// Use different application id so it doesn't override the release app
@@ -83,7 +98,7 @@ android {
 			resValue("string", "app_id", namespace + applicationIdSuffix)
 			resValue("string", "app_search_suggest_authority", "${namespace + applicationIdSuffix}.content")
 			resValue("string", "app_search_suggest_intent_data", "content://${namespace + applicationIdSuffix}.content/intent")
-			resValue("string", "app_name", "@string/app_name_benchmark")
+				resValue("string", "app_name", "Jellyfin TV (Benchmark)")
 
 			proguardFiles("benchmark-rules.pro")
 		}
@@ -205,6 +220,9 @@ dependencies {
 	implementation("androidx.profileinstaller:profileinstaller:1.3.1")
 
 	// Testing
+	androidTestImplementation(libs.androidx.test.ext.junit)
+	androidTestImplementation("androidx.compose.ui:ui-test-junit4:${libs.versions.androidx.compose.ui.get()}")
+	debugImplementation("androidx.compose.ui:ui-test-manifest:${libs.versions.androidx.compose.ui.get()}")
 	testImplementation(libs.kotest.runner.junit5)
 	testImplementation(libs.kotest.assertions)
 	testImplementation(libs.mockk)

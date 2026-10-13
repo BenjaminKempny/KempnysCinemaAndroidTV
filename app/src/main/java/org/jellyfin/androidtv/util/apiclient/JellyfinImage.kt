@@ -27,6 +27,8 @@ fun JellyfinImage.getUrl(
 	maxHeight: Int? = null,
 	fillWidth: Int? = null,
 	fillHeight: Int? = null,
+	/** Server side blur radius (applied by the Jellyfin image processor). */
+	blur: Int? = null,
 ): String = when (source) {
 	JellyfinImageSource.USER -> api.imageApi.getUserImageUrl(
 		userId = item,
@@ -42,6 +44,7 @@ fun JellyfinImage.getUrl(
 		maxHeight = maxHeight,
 		fillWidth = fillWidth,
 		fillHeight = fillHeight,
+		blur = blur,
 	)
 }
 
