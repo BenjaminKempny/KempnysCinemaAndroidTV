@@ -764,6 +764,12 @@
     <string name="cinema_player_more">More</string>
     <string name="cinema_player_rewind">%1$d seconds back</string>
     <string name="cinema_player_forward">%1$d seconds forward</string>
+    <string name="cinema_player_options">Options</string>
+    <string name="cinema_player_settings">Settings</string>
+    <string name="cinema_player_settings_detail">More options</string>
+    <string name="cinema_player_off">Off</string>
+    <string name="cinema_player_speed_normal">Normal (%1$s)</string>
+    <string name="cinema_player_quality">Quality</string>
     <string name="cinema_tags">Tags:</string>
     <string name="cinema_filmography">Filmography</string>
     <string name="cinema_died">Died %1$s</string>

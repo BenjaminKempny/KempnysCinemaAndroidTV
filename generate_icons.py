@@ -139,14 +139,14 @@ def main():
         banner.paste(logo, ((bw - logo.width) // 2, (bh - logo.height) // 2), logo)
         save(banner, f"mipmap-{density}", "app_banner.png")
 
-    # Logo used inside the app (splash screen).
-    save(square(art, 512, fill), "drawable-nodpi", "kempnys_logo.png")
+    # Logo used inside the app (splash screen). Transparent, it sits on the cinema shell.
+    save(square(art, 512), "drawable-nodpi", "kempnys_logo.png")
 
-    # Transparent header logo for the home screen: light artwork for the dark theme and an
-    # ink-coloured variant (accent colour preserved) for the light theme.
+    # Transparent header logo for the home screen. The gradient K reads on both the dark and
+    # the light theme, so both variants use the unchanged artwork.
     header = square(art, 512)
     save(header, "drawable-nodpi", "kempnys_logo_header.png")
-    save(recolor_neutrals(header, HEADER_INK_LIGHT_THEME), "drawable-nodpi", "kempnys_logo_header_light.png")
+    save(header, "drawable-nodpi", "kempnys_logo_header_light.png")
 
 
 # Text colour of the light cinema palette (CinemaLightPalette.text).

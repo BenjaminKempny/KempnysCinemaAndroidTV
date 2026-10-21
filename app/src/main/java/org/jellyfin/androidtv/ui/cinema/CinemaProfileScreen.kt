@@ -188,14 +188,7 @@ private fun CurrentAccountCapsule(
 					maxLines = 1,
 				)
 
-				Text(
-					text = state.currentUser?.name.orEmpty(),
-					color = CinemaColors.Text,
-					fontSize = CinemaDimens.PageTitleSize,
-					fontWeight = FontWeight.Bold,
-					maxLines = 1,
-					overflow = TextOverflow.Ellipsis,
-				)
+				CinemaPageTitle(text = state.currentUser?.name.orEmpty())
 
 				val server = listOfNotNull(state.serverName, state.serverAddress)
 					.distinct()

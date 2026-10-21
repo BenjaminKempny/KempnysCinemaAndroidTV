@@ -179,7 +179,8 @@ fun CinemaHero(
 		) {
 			Text(
 				text = stringResource(R.string.cinema_spotlight).uppercase(),
-				color = CinemaColors.OnMediaMuted,
+				// Light palette: a warm apricot eyebrow, still readable on the dark scrim.
+				color = if (CinemaThemeState.isLight) CinemaPastel.Apricot else CinemaColors.OnMediaMuted,
 				fontSize = CinemaDimens.EyebrowSize,
 				fontWeight = FontWeight.SemiBold,
 				letterSpacing = 0.22.em,

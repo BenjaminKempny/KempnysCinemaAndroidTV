@@ -89,7 +89,7 @@ fun CinemaRail(
 		label = "cinemaRailPillOffset",
 	)
 	val pillColor by animateColorAsState(
-		targetValue = if (focusedItem != null) CinemaColors.Accent else CinemaColors.NavActive,
+		targetValue = if (focusedItem != null) CinemaColors.AccentFocused else CinemaColors.NavActive,
 		animationSpec = CinemaMotion.buttonFocus(),
 		label = "cinemaRailPillColor",
 	)
@@ -155,7 +155,7 @@ private fun CinemaRailButton(
 
 	val contentColor by animateColorAsState(
 		targetValue = when {
-			active && railFocused -> CinemaColors.AccentText
+			active && railFocused -> CinemaColors.AccentFocusedText
 			active -> CinemaColors.NavActiveText
 			!enabled -> CinemaColors.Muted.copy(alpha = DISABLED_ALPHA)
 			else -> CinemaColors.Muted

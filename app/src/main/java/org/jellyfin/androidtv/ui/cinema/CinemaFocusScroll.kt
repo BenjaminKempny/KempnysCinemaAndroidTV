@@ -23,8 +23,21 @@ import androidx.compose.ui.relocation.bringIntoView
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** Minimal scrolling: a visible button must not pull its section above the TV viewport. */
+/** Minimal scrolling: only scroll as far as needed to bring the focused item into view. */
 internal object CinemaBringIntoViewSpec : BringIntoViewSpec
+
+/**
+ * Vertical pages: the focused section (or card) is always placed in the vertical centre of
+ * the viewport, so it never ends up glued to the top or bottom edge. Sections taller than
+ * the viewport are aligned to the top instead so their title stays visible. The list clamps
+ * the result at its start / end, so the first and last section simply stop at the edge.
+ */
+internal object CinemaCenterBringIntoViewSpec : BringIntoViewSpec {
+	override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+		if (size >= containerSize) return offset
+		return offset - (containerSize - size) / 2f
+	}
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -35,7 +48,7 @@ internal fun CinemaLazyColumn(
 	verticalArrangement: Arrangement.Vertical = Arrangement.Top,
 	content: LazyListScope.() -> Unit,
 ) {
-	CompositionLocalProvider(LocalBringIntoViewSpec provides CinemaBringIntoViewSpec) {
+	CompositionLocalProvider(LocalBringIntoViewSpec provides CinemaCenterBringIntoViewSpec) {
 		LazyColumn(
 			modifier = modifier,
 			state = state,
@@ -44,6 +57,16 @@ internal fun CinemaLazyColumn(
 			content = content,
 		)
 	}
+}
+
+/**
+ * Horizontal rails inside a [CinemaLazyColumn] keep the minimal scrolling — only the
+ * vertical page centres its sections. Wrap every `LazyRow` with this.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun CinemaRowScroll(content: @Composable () -> Unit) {
+	CompositionLocalProvider(LocalBringIntoViewSpec provides CinemaBringIntoViewSpec, content = content)
 }
 
 /**

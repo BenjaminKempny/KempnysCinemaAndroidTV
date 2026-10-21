@@ -257,7 +257,7 @@ fun CinemaProgressBar(
 				.fillMaxWidth(progress.coerceIn(0f, 1f))
 				.fillMaxHeight()
 				.clip(CinemaDimens.PillShape)
-				.background(CinemaColors.Accent),
+				.background(CinemaColors.Progress),
 		)
 	}
 }
@@ -445,13 +445,13 @@ fun CinemaEpisodeRow(
 					modifier = Modifier
 						.size(CinemaDimens.PlayBadgeSize + 8.dp)
 						.clip(CircleShape)
-						.background(if (focused) CinemaColors.Accent else CinemaColors.Button),
+						.background(if (focused) CinemaColors.AccentFocused else CinemaColors.Button),
 					contentAlignment = Alignment.Center,
 				) {
 					Icon(
 						painter = painterResource(R.drawable.ic_play),
 						contentDescription = null,
-						tint = if (focused) CinemaColors.AccentText else CinemaColors.Text,
+						tint = if (focused) CinemaColors.AccentFocusedText else CinemaColors.Text,
 						modifier = Modifier.size(20.dp),
 					)
 				}

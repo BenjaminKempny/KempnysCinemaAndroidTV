@@ -7,6 +7,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 
 /** Which control receives the focus when the controls open. */
 enum class CinemaPlayerFocusTarget {
@@ -75,6 +76,24 @@ class CinemaPlayerOverlayState {
 
 	fun poke() {
 		interaction++
+	}
+
+	/**
+	 * Handles a back press inside the overlay: steps out of an open panel (sub panel -> parent
+	 * -> controls), cancels a scrub or hides the controls. Returns `false` when nothing was open
+	 * so the caller may close the player.
+	 *
+	 * Used by both the Compose key handler and the fragment's back callback, because with
+	 * predictive back (targetSdk 36) the back key never reaches the Compose hierarchy.
+	 */
+	fun handleBack(): Boolean {
+		when {
+			panel != null -> closePanel()
+			scrubPositionMs != null -> cancelScrub()
+			visible -> hide()
+			else -> return false
+		}
+		return true
 	}
 
 	// region panels
@@ -168,8 +187,9 @@ class CinemaPlayerOverlayState {
 /** Keeps a scrub target away from the very end so the item does not complete by accident. */
 private const val END_GUARD_MS = 1_000L
 
-/** Glass side panels of the player. */
+/** Glass panels of the player. [Options] is the root menu behind the "⋯" button. */
 enum class CinemaPlayerPanel {
+	Options,
 	Audio,
 	Subtitles,
 	More,
@@ -230,6 +250,19 @@ data class CinemaPlayerInfo(
 	val videoAspect: Float?,
 )
 
+/**
+ * One trickplay thumbnail: the region ([x], [y], [width], [height] in pixels) inside the tile
+ * sheet identified by [tileKey].
+ */
+@Immutable
+data class CinemaTrickplayFrame(
+	val tileKey: String,
+	val x: Int,
+	val y: Int,
+	val width: Int,
+	val height: Int,
+)
+
 /** Bridge from the overlay to the legacy playback controller and fragment. */
 interface CinemaPlayerHost {
 	fun snapshot(): CinemaPlaybackSnapshot
@@ -242,6 +275,12 @@ interface CinemaPlayerHost {
 
 	fun hasAudioChoice(): Boolean
 	fun hasSubtitles(): Boolean
+
+	/** Trickplay thumbnail for [positionMs] or null when the server has none. */
+	fun trickplayFrame(positionMs: Long): CinemaTrickplayFrame? = null
+
+	/** Loads the tile sheet of a [CinemaTrickplayFrame]. */
+	suspend fun loadTrickplayTile(tileKey: String): ImageBitmap? = null
 
 	/** Builds the rows of [panel] or returns null when it is not available. */
 	fun panelContent(panel: CinemaPlayerPanel): CinemaPlayerPanelContent?

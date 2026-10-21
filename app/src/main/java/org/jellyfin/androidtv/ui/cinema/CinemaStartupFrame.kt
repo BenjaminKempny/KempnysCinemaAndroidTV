@@ -166,13 +166,7 @@ internal fun CinemaStartupHeader(
 		}
 
 		Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-			Text(
-				text = title,
-				color = CinemaColors.Text,
-				fontSize = CinemaDimens.PageTitleSize,
-				fontWeight = FontWeight.Bold,
-				maxLines = 1,
-			)
+			CinemaPageTitle(text = title)
 
 			if (!subtitle.isNullOrBlank()) {
 				Text(

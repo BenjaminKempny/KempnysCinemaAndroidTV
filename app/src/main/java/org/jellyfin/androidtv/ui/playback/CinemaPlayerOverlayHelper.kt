@@ -2,8 +2,19 @@ package org.jellyfin.androidtv.ui.playback
 
 import android.content.Context
 import android.view.View
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.lifecycle.lifecycleScope
+import coil3.ImageLoader
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
+import coil3.request.SuccessResult
+import coil3.request.maxBitmapSize
+import coil3.size.Dimension
+import coil3.size.Size
+import coil3.toBitmap
 import kotlinx.coroutines.launch
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.constant.getQualityProfiles
@@ -19,14 +30,21 @@ import org.jellyfin.androidtv.ui.playback.cinema.CinemaPlayerOverlay
 import org.jellyfin.androidtv.ui.playback.cinema.CinemaPlayerOverlayState
 import org.jellyfin.androidtv.ui.playback.cinema.CinemaPlayerPanel
 import org.jellyfin.androidtv.ui.playback.cinema.CinemaPlayerPanelContent
+import org.jellyfin.androidtv.ui.playback.cinema.CinemaTrickplayFrame
 import org.jellyfin.androidtv.ui.playback.overlay.CustomPlaybackTransportControlGlue
 import org.jellyfin.androidtv.util.ImageHelper
+import org.jellyfin.sdk.api.client.ApiClient
+import org.jellyfin.sdk.api.client.extensions.trickplayApi
+import org.jellyfin.sdk.api.client.extensions.userLibraryApi
+import org.jellyfin.sdk.api.client.util.AuthorizationHeaderBuilder
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.MediaSourceInfo
 import org.jellyfin.sdk.model.api.MediaStream
 import org.jellyfin.sdk.model.api.MediaStreamType
 import org.jellyfin.sdk.model.api.PlayMethod
+import org.jellyfin.sdk.model.api.TrickplayInfoDto
+import org.jellyfin.sdk.model.serializer.toUUIDOrNull
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import timber.log.Timber
@@ -93,6 +111,8 @@ private class CinemaPlayerHostImpl(
 	private val userSettingPreferences by inject<UserSettingPreferences>()
 	private val userPreferences by inject<UserPreferences>()
 	private val itemMutationRepository by inject<ItemMutationRepository>()
+	private val api by inject<ApiClient>()
+	private val imageLoader by inject<ImageLoader>()
 
 	/** Favorite changes made in the player, the item DTO itself is immutable. */
 	private val favoriteOverrides = mutableMapOf<UUID, Boolean>()
@@ -131,6 +151,94 @@ private class CinemaPlayerHostImpl(
 	override fun hasAudioChoice(): Boolean = runCatching { glue?.cinemaHasMultiAudio() == true }.getOrDefault(false)
 	override fun hasSubtitles(): Boolean = runCatching { glue?.cinemaHasSubtitles() == true }.getOrDefault(false)
 
+	// region trickplay
+
+	private val trickplayTiles = object : LinkedHashMap<String, ImageBitmap>(TRICKPLAY_CACHE_SIZE, 0.75f, true) {
+		override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > TRICKPLAY_CACHE_SIZE
+	}
+
+	override fun trickplayFrame(positionMs: Long): CinemaTrickplayFrame? = runCatching {
+		val controller = controller ?: return null
+		val item = controller.currentlyPlayingItem ?: return null
+		val mediaSource = controller.currentMediaSource ?: return null
+		val mediaSourceId = mediaSource.id?.toUUIDOrNull() ?: return null
+		// Smallest resolution is plenty for a preview and the fastest to load.
+		val info = trickplayFor(item)?.get(mediaSource.id)?.values?.minByOrNull { it.width } ?: return null
+		if (info.interval <= 0 || info.tileWidth <= 0 || info.tileHeight <= 0) return null
+
+		val thumbnail = (positionMs.coerceAtLeast(0) / info.interval).toInt()
+			.coerceAtMost((info.thumbnailCount - 1).coerceAtLeast(0))
+		val perTile = info.tileWidth * info.tileHeight
+		val offset = thumbnail % perTile
+		val url = api.trickplayApi.getTrickplayTileImageUrl(
+			itemId = item.id,
+			width = info.width,
+			index = thumbnail / perTile,
+			mediaSourceId = mediaSourceId,
+		)
+		CinemaTrickplayFrame(
+			tileKey = url,
+			x = (offset % info.tileWidth) * info.width,
+			y = (offset / info.tileWidth) * info.height,
+			width = info.width,
+			height = info.height,
+		)
+	}.getOrNull()
+
+	/**
+	 * Trickplay manifest of [item]. Items opened from the light weight home rows come without
+	 * the `Trickplay` field, so it is fetched once per item in the background.
+	 */
+	private fun trickplayFor(item: BaseItemDto): Map<String, Map<String, TrickplayInfoDto>>? {
+		item.trickplay?.takeIf { it.isNotEmpty() }?.let { return it }
+		if (!trickplayLookups.containsKey(item.id)) {
+			trickplayLookups[item.id] = null
+			fragment.viewLifecycleOwner.lifecycleScope.launch {
+				runCatching { api.userLibraryApi.getItem(itemId = item.id).content.trickplay }
+					.onSuccess { trickplay ->
+						trickplayLookups[item.id] = trickplay
+						if (trickplay.isNullOrEmpty()) Timber.i("Trickplay: no thumbnails on the server for \"%s\" (%s)", item.name, item.id)
+						else Timber.i("Trickplay: thumbnails available for \"%s\": %s", item.name, trickplay.values.flatMap { it.keys })
+					}
+					.onFailure { Timber.w(it, "Trickplay: unable to load the trickplay info of %s", item.id) }
+			}
+		}
+		return trickplayLookups[item.id]
+	}
+
+	private val trickplayLookups = mutableMapOf<UUID, Map<String, Map<String, TrickplayInfoDto>>?>()
+
+	override suspend fun loadTrickplayTile(tileKey: String): ImageBitmap? {
+		trickplayTiles[tileKey]?.let { return it }
+		val context = fragment.context ?: return null
+		val request = ImageRequest.Builder(context)
+			.data(tileKey)
+			.size(Size.ORIGINAL)
+			.maxBitmapSize(Size(Dimension.Undefined, Dimension.Undefined))
+			.httpHeaders(
+				NetworkHeaders.Builder()
+					.set(
+						"Authorization",
+						AuthorizationHeaderBuilder.buildHeader(
+							api.clientInfo.name,
+							api.clientInfo.version,
+							api.deviceInfo.id,
+							api.deviceInfo.name,
+							api.accessToken,
+						),
+					)
+					.build()
+			)
+			.build()
+		val result = imageLoader.execute(request) as? SuccessResult ?: return null
+		val bitmap = runCatching { result.image.toBitmap().asImageBitmap() }.getOrNull() ?: return null
+		trickplayTiles[tileKey] = bitmap
+		return bitmap
+	}
+
+	// endregion
+
+
 	private fun perform(action: Int) {
 		val glue = glue ?: return
 		val anchor = anchor ?: return
@@ -143,6 +251,7 @@ private class CinemaPlayerHostImpl(
 		val context = fragment.context ?: return null
 		return runCatching {
 			when (panel) {
+				CinemaPlayerPanel.Options -> optionsPanel(context, controller)
 				CinemaPlayerPanel.Audio -> audioPanel(context, controller)
 				CinemaPlayerPanel.Subtitles -> subtitlePanel(context, controller)
 				CinemaPlayerPanel.More -> morePanel(context, controller)
@@ -185,6 +294,8 @@ private class CinemaPlayerHostImpl(
 
 				// Read only.
 				CinemaPlayerPanel.Info -> return panel
+				// Only rows that open sub panels.
+				CinemaPlayerPanel.Options -> return panel
 			}
 		}.onFailure { Timber.w(it, "Unable to apply cinema player option %s of %s", option.id, panel) }
 		return null
@@ -227,36 +338,83 @@ private class CinemaPlayerHostImpl(
 		)
 	}
 
-	private fun morePanel(context: Context, controller: PlaybackController): CinemaPlayerPanelContent {
-		val item = controller.currentlyPlayingItem
-		val hasChapters = runCatching { glue?.cinemaHasChapters() == true }.getOrDefault(false)
-		val favorite = item?.let { favoriteOverrides[it.id] ?: (it.userData?.isFavorite == true) } ?: false
-		val qualityLabel = getQualityProfiles(context)[userPreferences[UserPreferences.maxBitrate]]
+	/** Root menu behind the "⋯" button: audio, subtitles, quality, speed and further settings. */
+	private fun optionsPanel(context: Context, controller: PlaybackController): CinemaPlayerPanelContent {
+		val audioTracks = runCatching { controller.currentStreamInfo?.selectableAudioStreams }.getOrNull().orEmpty()
+		val currentAudio = audioTracks.firstOrNull { it.index == controller.audioStreamIndex }
+		val subtitleIndex = controller.subtitleStreamIndex
+		val currentSubtitle = controller.currentMediaSource?.mediaStreams.orEmpty()
+			.firstOrNull { it.type == MediaStreamType.SUBTITLE && it.index == subtitleIndex }
+		val speed = controller.playbackSpeed
+		val speedLabel = if (abs(speed - 1f) < 0.01f) context.getString(R.string.cinema_player_speed_normal, formatSpeed(speed, decimals = true))
+		else formatSpeed(speed)
 
 		return CinemaPlayerPanelContent(
-			title = context.getString(R.string.cinema_player_more),
+			title = context.getString(R.string.cinema_player_options),
 			options = buildList {
-				if (hasChapters) add(CinemaPlayerOption(MORE_CHAPTERS, context.getString(R.string.lbl_chapters), icon = R.drawable.ic_select_chapter))
-				if (controller.hasPreviousItem()) add(CinemaPlayerOption(MORE_PREVIOUS, context.getString(R.string.lbl_prev_item), icon = R.drawable.ic_previous))
-				if (controller.hasNextItem()) add(CinemaPlayerOption(MORE_NEXT, context.getString(R.string.lbl_next_item), icon = R.drawable.ic_next))
+				if (audioTracks.isNotEmpty()) {
+					add(
+						CinemaPlayerOption(
+							OPTIONS_AUDIO,
+							context.getString(R.string.cinema_player_audio),
+							detail = currentAudio?.let { it.displayTitle ?: it.language },
+							icon = R.drawable.ic_select_audio,
+							opens = CinemaPlayerPanel.Audio,
+						)
+					)
+				}
 				add(
 					CinemaPlayerOption(
-						MORE_SPEED,
+						OPTIONS_SUBTITLES,
+						context.getString(R.string.cinema_player_subtitles),
+						detail = currentSubtitle?.let { it.displayTitle ?: it.language } ?: context.getString(R.string.cinema_player_off),
+						icon = R.drawable.ic_subtitles,
+						opens = CinemaPlayerPanel.Subtitles,
+					)
+				)
+				add(
+					CinemaPlayerOption(
+						OPTIONS_QUALITY,
+						context.getString(R.string.cinema_player_quality),
+						detail = getQualityProfiles(context)[userPreferences[UserPreferences.maxBitrate]],
+						icon = R.drawable.ic_select_quality,
+						opens = CinemaPlayerPanel.Quality,
+					)
+				)
+				add(
+					CinemaPlayerOption(
+						OPTIONS_SPEED,
 						context.getString(R.string.lbl_playback_speed),
-						detail = formatSpeed(controller.playbackSpeed),
+						detail = speedLabel,
 						icon = R.drawable.ic_playback_speed,
 						opens = CinemaPlayerPanel.Speed,
 					)
 				)
 				add(
 					CinemaPlayerOption(
-						MORE_QUALITY,
-						context.getString(R.string.lbl_quality_profile),
-						detail = qualityLabel,
-						icon = R.drawable.ic_select_quality,
-						opens = CinemaPlayerPanel.Quality,
+						OPTIONS_MORE,
+						context.getString(R.string.cinema_player_settings),
+						detail = context.getString(R.string.cinema_player_settings_detail),
+						icon = R.drawable.ic_settings,
+						opens = CinemaPlayerPanel.More,
 					)
 				)
+			},
+		)
+	}
+
+	private fun morePanel(context: Context, controller: PlaybackController): CinemaPlayerPanelContent {
+		val item = controller.currentlyPlayingItem
+		val hasChapters = runCatching { glue?.cinemaHasChapters() == true }.getOrDefault(false)
+		val favorite = item?.let { favoriteOverrides[it.id] ?: (it.userData?.isFavorite == true) } ?: false
+
+		return CinemaPlayerPanelContent(
+			title = context.getString(R.string.cinema_player_settings),
+			options = buildList {
+				if (hasChapters) add(CinemaPlayerOption(MORE_CHAPTERS, context.getString(R.string.lbl_chapters), icon = R.drawable.ic_select_chapter))
+				if (controller.hasPreviousItem()) add(CinemaPlayerOption(MORE_PREVIOUS, context.getString(R.string.lbl_prev_item), icon = R.drawable.ic_previous))
+				if (controller.hasNextItem()) add(CinemaPlayerOption(MORE_NEXT, context.getString(R.string.lbl_next_item), icon = R.drawable.ic_next))
+
 				add(
 					CinemaPlayerOption(
 						MORE_ZOOM,
@@ -342,11 +500,18 @@ private class CinemaPlayerHostImpl(
 		const val MORE_CHAPTERS = 1
 		const val MORE_PREVIOUS = 2
 		const val MORE_NEXT = 3
-		const val MORE_SPEED = 4
-		const val MORE_QUALITY = 5
 		const val MORE_ZOOM = 6
 		const val MORE_FAVORITE = 7
 		const val MORE_INFO = 8
+
+		const val OPTIONS_AUDIO = 1
+		const val OPTIONS_SUBTITLES = 2
+		const val OPTIONS_QUALITY = 3
+		const val OPTIONS_SPEED = 4
+		const val OPTIONS_MORE = 5
+
+		/** Decoded tile sheets kept in memory while scrubbing. */
+		const val TRICKPLAY_CACHE_SIZE = 4
 	}
 }
 
@@ -389,9 +554,10 @@ private fun playbackInfoRows(context: Context, controller: PlaybackController): 
 	}
 }
 
-/** `1×`, `1,25×` … */
-private fun formatSpeed(speed: Float): String {
-	val text = String.format(Locale.getDefault(), "%.2f", speed).trimEnd('0').trimEnd('.', ',')
+/** `1×`, `1,25×` … or with [decimals] always one decimal (`1,0×`). */
+private fun formatSpeed(speed: Float, decimals: Boolean = false): String {
+	val text = if (decimals) String.format(Locale.getDefault(), "%.1f", speed)
+	else String.format(Locale.getDefault(), "%.2f", speed).trimEnd('0').trimEnd('.', ',')
 	return "$text×"
 }
 

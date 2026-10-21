@@ -30,6 +30,8 @@ object CinemaColors {
 	val Muted: Color get() = palette.muted
 	val Accent: Color get() = palette.accent
 	val AccentText: Color get() = palette.accentText
+	val AccentFocused: Color get() = palette.accentFocused
+	val AccentFocusedText: Color get() = palette.accentFocusedText
 	val Rail: Color get() = palette.rail
 	val RailBlur: Color get() = palette.railBlur
 	val NavActive: Color get() = palette.navActive
@@ -71,6 +73,20 @@ object CinemaColors {
 
 	/** Skeleton shimmer gradient (`cinema.scss:762`). */
 	val ShimmerColors: List<Color> get() = palette.shimmerColors
+
+	/** Gradient ink for page titles, `null` when titles use plain [Text]. */
+	val TitleBrush: Brush? get() = palette.titleBrush
+
+	/** Pill marker in front of section titles, `null` when hidden. */
+	val SectionMarker: Brush? get() = palette.sectionMarker
+	val SectionTitle: Color get() = palette.sectionTitle
+
+	/** Progress bar fill. */
+	val Progress: Brush get() = palette.progress
+
+	/** Secondary warm accent. */
+	val Highlight: Color get() = palette.highlight
+	val HighlightText: Color get() = palette.highlightText
 }
 
 /**

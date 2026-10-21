@@ -408,6 +408,11 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
                 if (playbackControllerContainer.getValue().getPlaybackController().isLiveTv()) hide();
             } else if (mGuideVisible) {
                 hideGuide();
+            } else if (cinemaMode && cinemaOverlayState != null && cinemaOverlayState.handleBack()) {
+                // Back inside the cinema overlay (e.g. settings panel) returns to playback
+                CinemaPlayerOverlayHelperKt.focusCinemaOverlay(CustomPlaybackOverlayFragment.this);
+            } else if (cinemaMode && binding != null && binding.skipOverlay.getVisible()) {
+                clearSkipOverlay();
             } else {
                 closePlayer();
             }

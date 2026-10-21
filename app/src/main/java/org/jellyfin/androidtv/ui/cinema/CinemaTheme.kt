@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import org.jellyfin.androidtv.preference.UserPreferences
 import org.jellyfin.androidtv.ui.base.JellyfinTheme
 import org.jellyfin.androidtv.ui.settings.compat.rememberPreference
@@ -45,6 +46,9 @@ data class CinemaPalette(
 	val muted: Color,
 	val accent: Color,
 	val accentText: Color,
+	/** High-contrast fill of a focused button / pill, clearly distinct from [accent]. */
+	val accentFocused: Color,
+	val accentFocusedText: Color,
 	val rail: Color,
 	val railBlur: Color,
 	val navActive: Color,
@@ -71,6 +75,17 @@ data class CinemaPalette(
 	val heroScrimVertical: Brush,
 	val wideCardScrim: Brush,
 	val shimmerColors: List<Color>,
+	/** Fill for page titles ("Filme", "Serien" …). `null` renders plain [text]. */
+	val titleBrush: Brush?,
+	/** Small pill marker drawn in front of section titles. `null` hides it. */
+	val sectionMarker: Brush?,
+	/** Colour of section titles. */
+	val sectionTitle: Color,
+	/** Fill of progress bars on cards. */
+	val progress: Brush,
+	/** Secondary warm accent (badges, small highlights). */
+	val highlight: Color,
+	val highlightText: Color,
 )
 
 /**
@@ -115,6 +130,8 @@ val CinemaDarkPalette = CinemaPalette(
 	muted = Color(0xFFB6C0CD),
 	accent = Color(0xFFE1EDFA),
 	accentText = Color(0xFF142232),
+	accentFocused = Color(0xFFFFFFFF),
+	accentFocusedText = Color(0xFF0B1420),
 	rail = Color(0xFF1A222E),
 	railBlur = Color(0xB31C2531),
 	navActive = Color(0x29D8EAFF),
@@ -149,21 +166,36 @@ val CinemaDarkPalette = CinemaPalette(
 		Color(0xFF2B394A),
 		Color(0xFF1C2735),
 	),
+	titleBrush = null,
+	sectionMarker = null,
+	sectionTitle = Color(0xFFF6F8FC),
+	progress = SolidColor(Color(0xFFE1EDFA)),
+	highlight = Color(0xFFE1EDFA),
+	highlightText = Color(0xFF142232),
 )
 
 /**
  * Pastel tones shared by the light cinema palette and the light settings colour scheme.
- * Soft lavender is the lead hue, blush and mint add warmth and freshness; text uses a deep
- * plum ink instead of pure black so the page stays gentle but readable from the couch.
+ * Soft lavender is the lead hue, a warm peach / butter family is the second accent so the
+ * page gets a little sunshine without becoming loud. Text uses a deep plum ink instead of
+ * pure black so the page stays gentle but readable from the couch.
  */
 object CinemaPastel {
 	val Blush = Color(0xFFFCEEF3)
 	val Lavender = Color(0xFFF1EDFB)
 	val Mint = Color(0xFFE7F5F1)
+	val Butter = Color(0xFFFFF5DD)
 
 	val LavenderSoft = Color(0xFFE6DFF8)
 	val LavenderMid = Color(0xFFC9BDF0)
 	val LavenderStrong = Color(0xFF7F6CD0)
+	val LavenderDeep = Color(0xFF6A55C2)
+
+	val PeachSoft = Color(0xFFFFEBDC)
+	val Peach = Color(0xFFFFC9A3)
+	val PeachStrong = Color(0xFFF29A5E)
+	val PeachDeep = Color(0xFFD9763A)
+	val Apricot = Color(0xFFFFD98A)
 
 	val Ink = Color(0xFF2B2540)
 	val InkSoft = Color(0xFF4A4363)
@@ -171,18 +203,30 @@ object CinemaPastel {
 
 	val Paper = Color(0xFFFFFCFE)
 
-	/** Diagonal blush -> lavender -> mint wash used as page background. */
+	/** Diagonal blush -> lavender -> butter wash used as page background. */
 	val PageBrush: Brush
 		get() = Brush.linearGradient(
 			0f to Blush,
 			0.5f to Lavender,
-			1f to Mint,
+			1f to Butter,
 		)
+
+	/** Lavender -> peach ink for page titles. Deep enough to stay readable on the pastel page. */
+	val TitleBrush: Brush
+		get() = Brush.horizontalGradient(listOf(LavenderDeep, Color(0xFFB0679E), PeachDeep))
+
+	/** Vertical lavender -> peach pill in front of section titles. */
+	val MarkerBrush: Brush
+		get() = Brush.verticalGradient(listOf(LavenderStrong, PeachStrong))
+
+	/** Lavender -> peach fill for progress bars. */
+	val ProgressBrush: Brush
+		get() = Brush.horizontalGradient(listOf(LavenderStrong, PeachStrong))
 }
 
 /**
  * Light counterpart of [CinemaDarkPalette]. Uses a soft pastel family (lavender, blush,
- * mint) on paper-white surfaces with plum ink for text.
+ * peach, butter) on paper-white surfaces with plum ink for text.
  */
 val CinemaLightPalette = CinemaPalette(
 	isLight = true,
@@ -198,6 +242,10 @@ val CinemaLightPalette = CinemaPalette(
 	muted = CinemaPastel.InkMuted,
 	accent = Color(0xFFB9AEEC),
 	accentText = Color(0xFF231C47),
+	// The pastel lavender is too close to its focused variant — a deep plum fill with white
+	// text makes the focused button unmistakable from the couch.
+	accentFocused = CinemaPastel.LavenderDeep,
+	accentFocusedText = Color(0xFFFFFFFF),
 	rail = CinemaPastel.Paper,
 	railBlur = Color(0xE6FFFCFE),
 	navActive = Color(0x59C9BDF0),
@@ -212,8 +260,8 @@ val CinemaLightPalette = CinemaPalette(
 	focusRing = Color(0x667F6CD0),
 	focusSeparator = Color(0xE6FFFFFF),
 	focusGlow = Color(0x807F6CD0),
-	tag = Color(0xE6FFFFFF),
-	tagBorder = Color(0x407F6CD0),
+	tag = Color(0xF2FFF4EA),
+	tagBorder = Color(0x66F29A5E),
 	star = Color(0xFFF2A33A),
 	onMedia = OnMedia,
 	onMediaSoft = OnMediaSoft,
@@ -225,9 +273,15 @@ val CinemaLightPalette = CinemaPalette(
 	wideCardScrim = WideCardScrimBrush,
 	shimmerColors = listOf(
 		Color(0xFFECE6F7),
-		Color(0xFFFBF8FE),
+		Color(0xFFFFF6EC),
 		Color(0xFFECE6F7),
 	),
+	titleBrush = CinemaPastel.TitleBrush,
+	sectionMarker = CinemaPastel.MarkerBrush,
+	sectionTitle = Color(0xFF3B2F63),
+	progress = CinemaPastel.ProgressBrush,
+	highlight = CinemaPastel.Peach,
+	highlightText = Color(0xFF5A2E10),
 )
 
 /**

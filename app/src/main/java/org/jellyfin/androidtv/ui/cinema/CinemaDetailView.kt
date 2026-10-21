@@ -178,11 +178,8 @@ private fun LazyListScope.collectionContent(
 				}
 			}
 
-			Text(
+			CinemaPageTitle(
 				text = collection.name.orEmpty(),
-				color = CinemaColors.Text,
-				fontSize = CinemaDimens.PageTitleSize,
-				fontWeight = FontWeight.Bold,
 				maxLines = 2,
 			)
 		}
@@ -723,13 +720,16 @@ private fun CinemaDetailOverview(
 	}
 }
 
-/** Rounded section panel with a title — used for next up, seasons and cast. */
+/**
+ * Rounded section panel with a title — used for next up, seasons and cast. Focusing any
+ * card inside centres the whole panel (title included) in the viewport.
+ */
 @Composable
 private fun CinemaDetailSection(
 	title: String,
 	content: @Composable () -> Unit,
 ) {
-	CinemaPanel(Modifier.fillMaxWidth()) {
+	CinemaPanel(Modifier.fillMaxWidth().cinemaFocusSection()) {
 		Column(
 			modifier = Modifier.padding(vertical = 22.dp),
 			verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -738,7 +738,8 @@ private fun CinemaDetailSection(
 				text = title,
 				modifier = Modifier.padding(horizontal = SECTION_PADDING),
 			)
-			content()
+			// Horizontal rails inside keep the minimal scrolling; only the page centres.
+			CinemaRowScroll(content)
 		}
 	}
 }

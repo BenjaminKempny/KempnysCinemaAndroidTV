@@ -280,13 +280,7 @@ private fun CinemaHeader(
 			)
 		}
 
-		Text(
-			text = title,
-			color = CinemaColors.Text,
-			fontSize = CinemaDimens.PageTitleSize,
-			fontWeight = FontWeight.Bold,
-			maxLines = 1,
-		)
+		CinemaPageTitle(text = title)
 	}
 }
 
@@ -319,7 +313,8 @@ private fun LazyListScope.allView(
 
 	if (state.continueWatching.isNotEmpty()) {
 		item(key = "continue-watching", contentType = "continueWatching") {
-			CinemaPanel(Modifier.fillMaxWidth()) {
+			// The whole panel (title + cards) is centred when one of its cards gets focus.
+			CinemaPanel(Modifier.fillMaxWidth().cinemaFocusSection()) {
 				Column(
 					modifier = Modifier.padding(vertical = 24.dp),
 					verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -329,25 +324,27 @@ private fun LazyListScope.allView(
 						modifier = Modifier.padding(horizontal = 24.dp),
 					)
 
-					LazyRow(
-						state = rememberCinemaLazyListState("continue-watching"),
-						modifier = Modifier
-							.fillMaxWidth()
-							.focusRestorer(),
-						contentPadding = PaddingValues(horizontal = 24.dp),
-						horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
-					) {
-						itemsIndexed(state.continueWatching, key = { _, item -> item.id }, contentType = { _, _ -> "continueWatchingItem" }) { index, item ->
-							CinemaWideCard(
-								title = item.cinemaTitle,
-								subtitle = item.cinemaSubtitle,
-								imageUrl = thumbUrl(item),
-								progress = item.cinemaProgress,
-								onClick = { actions.onPlayItem(item) },
-								onLongClick = { actions.onItemMenu(item) },
-								modifier = Modifier.railOnLeft(railFocusRequester, index == 0),
-								focusKey = "continue-${item.id}",
-							)
+					CinemaRowScroll {
+						LazyRow(
+							state = rememberCinemaLazyListState("continue-watching"),
+							modifier = Modifier
+								.fillMaxWidth()
+								.focusRestorer(),
+							contentPadding = PaddingValues(horizontal = 24.dp),
+							horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
+						) {
+							itemsIndexed(state.continueWatching, key = { _, item -> item.id }, contentType = { _, _ -> "continueWatchingItem" }) { index, item ->
+								CinemaWideCard(
+									title = item.cinemaTitle,
+									subtitle = item.cinemaSubtitle,
+									imageUrl = thumbUrl(item),
+									progress = item.cinemaProgress,
+									onClick = { actions.onPlayItem(item) },
+									onLongClick = { actions.onItemMenu(item) },
+									modifier = Modifier.railOnLeft(railFocusRequester, index == 0),
+									focusKey = "continue-${item.id}",
+								)
+							}
 						}
 					}
 				}
@@ -418,28 +415,33 @@ private fun LazyListScope.genresView(
 	railFocusRequester: FocusRequester?,
 ) {
 	items(state.genreRows, key = { it.name }, contentType = { "genreRow" }) { row ->
-		Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+		Column(
+			modifier = Modifier.cinemaFocusSection(),
+			verticalArrangement = Arrangement.spacedBy(14.dp),
+		) {
 			CinemaSectionTitle(row.name)
 
-			LazyRow(
-				state = rememberCinemaLazyListState("genre-${row.name}"),
-				modifier = Modifier
-					.fillMaxWidth()
-					.focusRestorer(),
-				horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
-			) {
-				itemsIndexed(row.items, key = { _, item -> item.id }, contentType = { _, _ -> "posterItem" }) { index, item ->
-					CinemaPosterCard(
-						title = item.cinemaTitle,
-						subtitle = item.cinemaSubtitle,
-						imageUrl = posterUrl(item),
-						progress = item.cinemaProgress,
-						onClick = { actions.onOpenItem(item) },
-						onLongClick = { actions.onItemMenu(item) },
-						width = CinemaDimens.RowCardWidth,
-						modifier = Modifier.railOnLeft(railFocusRequester, index == 0),
-						focusKey = "genre-${row.name}-${item.id}",
-					)
+			CinemaRowScroll {
+				LazyRow(
+					state = rememberCinemaLazyListState("genre-${row.name}"),
+					modifier = Modifier
+						.fillMaxWidth()
+						.focusRestorer(),
+					horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
+				) {
+					itemsIndexed(row.items, key = { _, item -> item.id }, contentType = { _, _ -> "posterItem" }) { index, item ->
+						CinemaPosterCard(
+							title = item.cinemaTitle,
+							subtitle = item.cinemaSubtitle,
+							imageUrl = posterUrl(item),
+							progress = item.cinemaProgress,
+							onClick = { actions.onOpenItem(item) },
+							onLongClick = { actions.onItemMenu(item) },
+							width = CinemaDimens.RowCardWidth,
+							modifier = Modifier.railOnLeft(railFocusRequester, index == 0),
+							focusKey = "genre-${row.name}-${item.id}",
+						)
+					}
 				}
 			}
 		}

@@ -2,6 +2,7 @@ package org.jellyfin.androidtv.ui.cinema
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
@@ -34,18 +35,24 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.constrainWidth
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.text.BasicText
 import org.jellyfin.androidtv.ui.base.Icon
+import org.jellyfin.androidtv.ui.base.LocalTextStyle
 import org.jellyfin.androidtv.ui.base.Text
 
 /**
@@ -111,8 +118,9 @@ fun CinemaTag(
 }
 
 /**
- * A5 — pill button. Background animates from `cinema_button` to a slightly lighter shade
- * on focus over 160 ms (no outer focus ring).
+ * A5 — pill button. On focus the fill switches to the high-contrast [CinemaColors.AccentFocused]
+ * tone, an outer focus ring is drawn and the button grows slightly, so the focused button
+ * stays clearly visible on TV — also for the lavender primary buttons of the light palette.
  */
 @Composable
 fun CinemaButton(
@@ -128,24 +136,32 @@ fun CinemaButton(
 
 	val background by animateColorAsState(
 		targetValue = when {
-			primary && focused -> CinemaColors.Accent.copy(alpha = 0.95f)
+			focused -> CinemaColors.AccentFocused
 			primary -> CinemaColors.Accent
-			focused -> CinemaColors.ButtonFocused
 			else -> CinemaColors.Button
 		},
 		animationSpec = CinemaMotion.buttonFocus(),
 		label = "cinemaButtonBackground",
 	)
-	val contentColor = if (primary) CinemaColors.AccentText else CinemaColors.Text
+	val contentColor by animateColorAsState(
+		targetValue = when {
+			focused -> CinemaColors.AccentFocusedText
+			primary -> CinemaColors.AccentText
+			else -> CinemaColors.Text
+		},
+		animationSpec = CinemaMotion.buttonFocus(),
+		label = "cinemaButtonContent",
+	)
 
 	Row(
 		modifier = modifier
 			.height(CinemaDimens.ButtonHeight)
+			.cinemaButtonFocus(focused, CinemaDimens.ButtonHeight / 2)
 			.clip(CinemaDimens.PillShape)
 			.background(background)
 			.border(
 				width = 1.dp,
-				color = if (focused) CinemaColors.BorderStrong else CinemaColors.Border,
+				color = if (focused) Color.Transparent else CinemaColors.Border,
 				shape = CinemaDimens.PillShape,
 			)
 			.onFocusChanged { focused = it.isFocused }
@@ -194,21 +210,30 @@ fun CinemaIconButton(
 
 	val background by animateColorAsState(
 		targetValue = when {
-			focused && active -> CinemaColors.Accent.copy(alpha = 0.95f)
+			focused -> CinemaColors.AccentFocused
 			active -> CinemaColors.Accent
-			focused -> CinemaColors.ButtonFocused
 			else -> CinemaColors.Button
 		},
 		animationSpec = CinemaMotion.buttonFocus(),
 		label = "cinemaIconButtonBackground",
 	)
+	val tint by animateColorAsState(
+		targetValue = when {
+			focused -> CinemaColors.AccentFocusedText
+			active -> CinemaColors.AccentText
+			else -> CinemaColors.Text
+		},
+		animationSpec = CinemaMotion.buttonFocus(),
+		label = "cinemaIconButtonTint",
+	)
 
 	Box(
 		modifier = modifier
 			.size(size)
+			.cinemaButtonFocus(focused, size / 2)
 			.clip(CinemaDimens.PillShape)
 			.background(background)
-			.border(1.dp, if (focused) CinemaColors.BorderStrong else CinemaColors.Border, CinemaDimens.PillShape)
+			.border(1.dp, if (focused) Color.Transparent else CinemaColors.Border, CinemaDimens.PillShape)
 			.onFocusChanged { focused = it.isFocused }
 			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
 		contentAlignment = Alignment.Center,
@@ -216,11 +241,33 @@ fun CinemaIconButton(
 		Icon(
 			painter = icon,
 			contentDescription = contentDescription,
-			tint = if (active) CinemaColors.AccentText else CinemaColors.Text,
+			tint = tint,
 			modifier = Modifier.size(size * 0.44f),
 		)
 	}
 }
+
+/**
+ * Shared focus treatment of all cinema buttons: a slight zoom plus the accent focus ring
+ * drawn outside the pill. Must be applied before the clip so the ring is not cut off.
+ */
+@Composable
+private fun Modifier.cinemaButtonFocus(focused: Boolean, cornerRadius: Dp): Modifier {
+	val reducedMotion = rememberReducedMotion()
+	val scale by animateFloatAsState(
+		targetValue = if (focused) BUTTON_FOCUS_SCALE else 1f,
+		animationSpec = if (reducedMotion) tween(0) else CinemaMotion.buttonFocus(),
+		label = "cinemaButtonScale",
+	)
+	return this
+		.graphicsLayer {
+			scaleX = scale
+			scaleY = scale
+		}
+		.cinemaFocusRing(focused, cornerRadius)
+}
+
+private const val BUTTON_FOCUS_SCALE = 1.06f
 
 /**
  * A1 — the segmented control (`Alle | Sammlungen | Genres`) with a pill that *slides*
@@ -264,7 +311,7 @@ fun CinemaTabRow(
 		label = "cinemaPillWidth",
 	)
 	val pillColor by animateColorAsState(
-		targetValue = if (focusedIndex != null) CinemaColors.Accent else CinemaColors.NavActive,
+		targetValue = if (focusedIndex != null) CinemaColors.AccentFocused else CinemaColors.NavActive,
 		animationSpec = CinemaMotion.buttonFocus(),
 		label = "cinemaPillColor",
 	)
@@ -337,7 +384,7 @@ private fun CinemaTab(
 
 	val contentColor by animateColorAsState(
 		targetValue = when {
-			active && focusedByRow -> CinemaColors.AccentText
+			active && focusedByRow -> CinemaColors.AccentFocusedText
 			active -> CinemaColors.NavActiveText
 			else -> CinemaColors.Muted
 		},
@@ -364,20 +411,82 @@ private fun CinemaTab(
 	}
 }
 
-/** Section heading used above rails and grids. */
+/**
+ * Section heading used above rails and grids. In the light palette a small lavender -> peach
+ * pill sits in front of the title and the title itself uses a deeper plum.
+ */
 @Composable
 fun CinemaSectionTitle(
 	text: String,
 	modifier: Modifier = Modifier,
-) = Text(
-	text = text,
-	modifier = modifier,
-	color = CinemaColors.Text,
-	fontSize = CinemaDimens.SectionTitleSize,
-	fontWeight = FontWeight.Bold,
-	maxLines = 1,
-	overflow = TextOverflow.Ellipsis,
-)
+) {
+	val marker = CinemaColors.SectionMarker
+	Row(
+		modifier = modifier,
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(12.dp),
+	) {
+		if (marker != null) {
+			Box(
+				modifier = Modifier
+					.width(6.dp)
+					.height(24.dp)
+					.clip(CinemaDimens.PillShape)
+					.background(marker),
+			)
+		}
+
+		Text(
+			text = text,
+			modifier = Modifier.weight(1f, fill = false),
+			color = CinemaColors.SectionTitle,
+			fontSize = CinemaDimens.SectionTitleSize,
+			fontWeight = FontWeight.Bold,
+			maxLines = 1,
+			overflow = TextOverflow.Ellipsis,
+		)
+	}
+}
+
+/**
+ * Large page title ("Filme", "Serien" …). Uses the palette's gradient ink when available
+ * (light palette: lavender -> peach), otherwise plain text colour.
+ */
+@Composable
+fun CinemaPageTitle(
+	text: String,
+	modifier: Modifier = Modifier,
+	fontSize: TextUnit = CinemaDimens.PageTitleSize,
+	maxLines: Int = 1,
+) {
+	val brush = CinemaColors.TitleBrush
+	if (brush == null) {
+		Text(
+			text = text,
+			modifier = modifier,
+			color = CinemaColors.Text,
+			fontSize = fontSize,
+			fontWeight = FontWeight.Bold,
+			maxLines = maxLines,
+			overflow = TextOverflow.Ellipsis,
+		)
+	} else {
+		// The shared Text composable always resolves a solid colour, so the brush needs BasicText.
+		BasicText(
+			text = text,
+			modifier = modifier,
+			style = LocalTextStyle.current.merge(
+				TextStyle(
+					brush = brush,
+					fontSize = fontSize,
+					fontWeight = FontWeight.Bold,
+				)
+			),
+			maxLines = maxLines,
+			overflow = TextOverflow.Ellipsis,
+		)
+	}
+}
 
 /**
  * Full-bleed cinema page background (`--cinema-page-bg`).
