@@ -55,6 +55,7 @@ fun StartupToolbar(
 	ProvideRouter(routes, Routes.AUTHENTICATION_FROM_LOGIN) {
 		SettingsDialog(
 			visible = settingsVisible,
+			fullPage = true,
 			onDismissRequest = { settingsVisible = false }
 		) {
 			SettingsRouterContent()

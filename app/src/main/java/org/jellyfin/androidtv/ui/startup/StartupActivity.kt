@@ -1,6 +1,7 @@
 package org.jellyfin.androidtv.ui.startup
 
 import android.Manifest
+import android.app.ActivityOptions
 import android.app.SearchManager
 import android.content.Intent
 import android.os.Bundle
@@ -185,7 +186,12 @@ class StartupActivity : FragmentActivity() {
 		// Clear navigation history
 		intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_TASK_ON_HOME)
 		Timber.i("Opening next activity $intent")
-		startActivity(intent)
+		// Login, splash and library share the same frame — a short crossfade keeps it
+		// looking like one screen instead of the default activity slide.
+		startActivity(
+			intent,
+			ActivityOptions.makeCustomAnimation(this, R.anim.fade_in, R.anim.fade_out).toBundle(),
+		)
 		finishAfterTransition()
 	}
 
@@ -200,8 +206,8 @@ class StartupActivity : FragmentActivity() {
 	}
 
 	private fun showServer(id: UUID) = supportFragmentManager.commit {
-		replace<StartupToolbarFragment>(R.id.content_view)
-		add<ServerFragment>(
+		// The account picker brings its own cinema frame (rail + shell) instead of the toolbar.
+		replace<ServerFragment>(
 			R.id.content_view, null, createBundle {
 				putString(ServerFragment.ARG_SERVER_ID, id.toString())
 			}

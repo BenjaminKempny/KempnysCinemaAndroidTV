@@ -38,6 +38,8 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 class CinemaProfileFragment : Fragment() {
 	internal var railFocusRequester: FocusRequester? by mutableStateOf(null)
 	internal var onReturnHome: (() -> Unit)? = null
+	/** Set when embedded: opens the settings inside the page frame instead of the dialog. */
+	internal var onOpenSettings: (() -> Unit)? = null
 	private val viewModel by viewModel<CinemaProfileViewModel>()
 	private val settingsViewModel by activityViewModel<SettingsViewModel>()
 	private val navigationRepository by inject<NavigationRepository>()
@@ -60,7 +62,7 @@ class CinemaProfileFragment : Fragment() {
 					onSelectUser = ::selectUser,
 					onManageAccounts = ::openAccountManager,
 					onSignOut = ::signOut,
-					onSettings = { settingsViewModel.show() },
+					onSettings = { onOpenSettings?.invoke() ?: settingsViewModel.show() },
 				),
 				modifier = Modifier.fillMaxSize(),
 				requestInitialFocus = arguments?.getBoolean(CINEMA_EMBEDDED) != true,

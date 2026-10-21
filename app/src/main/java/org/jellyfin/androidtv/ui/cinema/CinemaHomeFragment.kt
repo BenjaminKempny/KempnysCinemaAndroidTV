@@ -32,9 +32,7 @@ import org.jellyfin.androidtv.data.repository.NotificationsRepository
 import org.jellyfin.androidtv.ui.navigation.Destinations
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository
 import org.jellyfin.androidtv.ui.playback.PlaybackLauncher
-import org.jellyfin.androidtv.ui.settings.compat.SettingsViewModel
 import org.koin.android.ext.android.inject
-import org.koin.androidx.viewmodel.ext.android.activityViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
 
 /**
@@ -43,13 +41,13 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
  */
 class CinemaHomeFragment : Fragment() {
 	private val viewModel by viewModel<CinemaHomeViewModel>()
-	private val settingsViewModel by activityViewModel<SettingsViewModel>()
 	private val navigationRepository by inject<NavigationRepository>()
 	private val playbackLauncher by inject<PlaybackLauncher>()
 	private val sessionRepository by inject<SessionRepository>()
 	private val serverRepository by inject<ServerRepository>()
 	private val notificationRepository by inject<NotificationsRepository>()
 	private var playJob: kotlinx.coroutines.Job? = null
+	private val focusMemory = CinemaFocusMemory()
 
 	override fun onCreateView(
 		inflater: LayoutInflater,
@@ -71,7 +69,7 @@ class CinemaHomeFragment : Fragment() {
 					modifier = Modifier.fillMaxSize(),
 					fragmentState = searchState,
 					arguments = embeddedArguments,
-					onUpdate = { it.railFocusRequester = rail },
+					onUpdate = { it.railFocusRequester = rail; it.parentFocusMemory = focusMemory },
 				)
 			}
 			CinemaRailItem.Profile -> { rail ->
@@ -79,35 +77,45 @@ class CinemaHomeFragment : Fragment() {
 					modifier = Modifier.fillMaxSize(),
 					fragmentState = profileState,
 					arguments = embeddedArguments,
-					onUpdate = { it.railFocusRequester = rail; it.onReturnHome = returnHome },
+					onUpdate = {
+						it.railFocusRequester = rail
+						it.onReturnHome = returnHome
+						it.onOpenSettings = { selectedRail = CinemaRailItem.Settings }
+					},
 				)
+			}
+			// The settings live inside the page frame like search and profile.
+			CinemaRailItem.Settings -> { rail ->
+				CinemaSettingsPane(railFocusRequester = rail)
 			}
 			else -> null
 		}
 		BackHandler(enabled = secondaryContent != null) { returnHome() }
 
-		CinemaTheme {
-			CinemaHomeScreen(
-				state = state,
-				actions = CinemaHomeActions(
-					onOpenItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
-					onPlayItem = ::play,
-					onOpenHeroItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
-					onPlayHeroItem = { hero -> playById(hero.id) },
-					// Secondary actions are not part of the card's focus target, they open
-					// the detail screen where the full action row lives (spec §2.7).
-					onItemMenu = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
-					onRailSelect = { selectedRail = it; onRailSelect(it) },
-				),
-				posterUrl = viewModel::posterUrl,
-				thumbUrl = viewModel::thumbUrl,
-				onSelectView = viewModel::setView,
-				onSelectSort = viewModel::setSort,
-				onLoadNextPage = viewModel::loadNextCatalogPage,
-				modifier = Modifier.fillMaxSize(),
-				selectedRailItem = selectedRail,
-				secondaryContent = secondaryContent,
-			)
+		ProvideCinemaFocusMemory(focusMemory) {
+			CinemaTheme {
+				CinemaHomeScreen(
+					state = state,
+					actions = CinemaHomeActions(
+						onOpenItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
+						onPlayItem = ::play,
+						onOpenHeroItem = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
+						onPlayHeroItem = { hero -> playById(hero.id) },
+						// Secondary actions are not part of the card's focus target, they open
+						// the detail screen where the full action row lives (spec §2.7).
+						onItemMenu = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
+						onRailSelect = { selectedRail = it; onRailSelect(it) },
+					),
+					posterUrl = viewModel::posterUrl,
+					thumbUrl = viewModel::thumbUrl,
+					onSelectView = viewModel::setView,
+					onSelectSort = viewModel::setSort,
+					onLoadNextPage = viewModel::loadNextCatalogPage,
+					modifier = Modifier.fillMaxSize(),
+					selectedRailItem = selectedRail,
+					secondaryContent = secondaryContent,
+				)
+			}
 		}
 	}
 
@@ -126,6 +134,9 @@ class CinemaHomeFragment : Fragment() {
 
 	override fun onResume() {
 		super.onResume()
+		// The composition may survive the detail screen. Give the focus back to the card
+		// that was opened instead of Compose's default target.
+		focusMemory.startRestore()
 		// Resume positions and watched flags change outside of this screen. Only the
 		// Continue Watching row is reloaded so scroll and focus position survive.
 		viewModel.refreshContinueWatching()
@@ -138,7 +149,8 @@ class CinemaHomeFragment : Fragment() {
 		// The web profile page manages avatar and password; on Android TV the closest
 		// equivalent is the cinema styled account switcher.
 		CinemaRailItem.Profile -> Unit
-		CinemaRailItem.Settings -> settingsViewModel.show()
+		// The settings are rendered inline as secondary content.
+		CinemaRailItem.Settings -> Unit
 	}
 
 

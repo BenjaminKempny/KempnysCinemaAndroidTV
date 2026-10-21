@@ -62,14 +62,22 @@ fun CinemaRail(
 	modifier: Modifier = Modifier,
 	/** Lets the content hand `DPAD_LEFT` over to the rail (spec §2.1). */
 	focusRequester: FocusRequester? = null,
+	/**
+	 * Entries that can be focused. The others are still drawn (dimmed) so screens without a
+	 * session — login, account picker — show the very same rail as the library pages.
+	 */
+	enabledItems: Set<CinemaRailItem> = CinemaRailItem.entries.toSet(),
+	/** Library pages switch on focus; screens with dialogs behind an entry need a click. */
+	selectOnFocus: Boolean = true,
 ) {
 	val items = CinemaRailItem.entries
 	val requesters = remember { List(items.size) { FocusRequester() } }
 	var focusedItem by remember { mutableStateOf<CinemaRailItem?>(null) }
 	val reducedMotion = rememberReducedMotion()
 	LaunchedEffect(focusedItem) {
-		focusedItem?.takeIf { it != selected }?.let(onSelect)
+		if (selectOnFocus) focusedItem?.takeIf { it != selected }?.let(onSelect)
 	}
+	val entryItem = selected.takeIf { it in enabledItems } ?: items.firstOrNull { it in enabledItems }
 
 	val activeItem = focusedItem ?: selected
 	val activeIndex = items.indexOf(activeItem).coerceAtLeast(0)
@@ -100,7 +108,7 @@ fun CinemaRail(
 				.padding(vertical = 12.dp, horizontal = 8.dp)
 				.onFocusChanged { if (!it.hasFocus) focusedItem = null }
 				.focusProperties {
-					onEnter = { requesters[selected.ordinal].requestFocus() }
+					onEnter = { entryItem?.let { requesters[it.ordinal].requestFocus() } }
 				}
 				.focusGroup(),
 		) {
@@ -115,15 +123,17 @@ fun CinemaRail(
 
 			Column(verticalArrangement = Arrangement.spacedBy(CinemaDimens.RailGap)) {
 				items.forEach { item ->
+					val enabled = item in enabledItems
 					CinemaRailButton(
 						item = item,
 						active = item == activeItem,
 						railFocused = focusedItem != null,
+						enabled = enabled,
 						onFocused = { focusedItem = item },
 						onClick = { onSelect(item) },
 						modifier = Modifier
 							.focusRequester(requesters[item.ordinal])
-							.then(if (item == selected && focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
+							.then(if (item == entryItem && focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier),
 					)
 				}
 			}
@@ -139,6 +149,7 @@ private fun CinemaRailButton(
 	onFocused: () -> Unit,
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
+	enabled: Boolean = true,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
 
@@ -146,6 +157,7 @@ private fun CinemaRailButton(
 		targetValue = when {
 			active && railFocused -> CinemaColors.AccentText
 			active -> CinemaColors.NavActiveText
+			!enabled -> CinemaColors.Muted.copy(alpha = DISABLED_ALPHA)
 			else -> CinemaColors.Muted
 		},
 		animationSpec = CinemaMotion.buttonFocus(),
@@ -156,7 +168,8 @@ private fun CinemaRailButton(
 		modifier = modifier
 			.size(CinemaDimens.RailItemSize)
 			.onFocusChanged { if (it.isFocused) onFocused() }
-			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+			.focusProperties { canFocus = enabled }
+			.clickable(enabled = enabled, interactionSource = interactionSource, indication = null, onClick = onClick),
 		contentAlignment = Alignment.Center,
 	) {
 		Icon(
@@ -167,3 +180,4 @@ private fun CinemaRailButton(
 		)
 	}
 }
+private const val DISABLED_ALPHA = 0.35f

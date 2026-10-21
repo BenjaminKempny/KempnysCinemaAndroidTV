@@ -53,6 +53,8 @@ val CinemaHeroMinHeight = 230.dp
 /** Line height as a multiple of the font size. */
 private const val TITLE_LINE_HEIGHT_FACTOR = 1.08f
 
+private const val HERO_DETAILS_FOCUS_KEY = "hero-details"
+
 /**
  * Poor man's auto sizing for the spotlight title. Compose only gained `TextAutoSize` for
  * `BasicText`, which the themed [Text] wrapper does not expose, so the size is picked
@@ -104,7 +106,9 @@ fun CinemaHero(
 ) {
 	if (items.isEmpty()) return
 
-	var index by remember(items) { mutableStateOf(0) }
+	val focusMemory = LocalCinemaFocusMemory.current
+	var index by remember(items) { mutableStateOf((focusMemory?.heroIndex ?: 0).coerceIn(items.indices)) }
+	LaunchedEffect(index) { focusMemory?.heroIndex = index }
 	var hasFocus by remember { mutableStateOf(false) }
 	val reducedMotion = rememberReducedMotion()
 
@@ -231,7 +235,8 @@ fun CinemaHero(
 				CinemaButton(
 					text = stringResource(R.string.cinema_details),
 					icon = painterResource(R.drawable.ic_info),
-					onClick = { onDetails(item) },
+					onClick = rememberCinemaOpenAction(HERO_DETAILS_FOCUS_KEY) { onDetails(item) },
+					modifier = cinemaRestoreFocus(HERO_DETAILS_FOCUS_KEY),
 				)
 
 				// The web puts two mouse-only arrows in the bottom right corner. On TV

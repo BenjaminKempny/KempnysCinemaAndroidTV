@@ -65,8 +65,12 @@ fun CinemaSearchScreen(
 ) {
 	val inputFocusRequester = remember { FocusRequester() }
 	val groups = results.filter { it.items.isNotEmpty() }
+	val focusMemory = LocalCinemaFocusMemory.current
 
-	LaunchedEffect(Unit) { if (requestInitialFocus) runCatching { inputFocusRequester.requestFocus() } }
+	LaunchedEffect(Unit) {
+		// Returning from a result gives the focus back to that result instead.
+		if (requestInitialFocus && focusMemory?.isRestoring != true) runCatching { inputFocusRequester.requestFocus() }
+	}
 
 	CinemaBackground(modifier) {
 		Column(Modifier.fillMaxSize()) {
@@ -99,6 +103,7 @@ fun CinemaSearchScreen(
 			}
 
 			LazyColumn(
+				state = rememberCinemaLazyListState("search"),
 				modifier = Modifier
 					.fillMaxSize()
 					.focusRestorer(),
@@ -114,6 +119,7 @@ fun CinemaSearchScreen(
 						CinemaSectionTitle(stringResource(group.labelRes))
 
 						LazyRow(
+							state = rememberCinemaLazyListState("search-${group.labelRes}"),
 							modifier = Modifier
 								.fillMaxWidth()
 								.focusRestorer(),
@@ -128,6 +134,7 @@ fun CinemaSearchScreen(
 									onClick = { onOpenItem(item) },
 									width = CinemaDimens.RowCardWidth,
 									modifier = Modifier.railOnLeft(leftFocusRequester, index == 0),
+									focusKey = "search-${group.labelRes}-${item.id}",
 								)
 							}
 						}

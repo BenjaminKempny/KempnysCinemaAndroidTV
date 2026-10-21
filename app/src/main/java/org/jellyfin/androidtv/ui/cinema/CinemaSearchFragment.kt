@@ -27,6 +27,9 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 /** Host fragment for the cinema search screen. */
 class CinemaSearchFragment : Fragment() {
 	internal var railFocusRequester: FocusRequester? by mutableStateOf(null)
+	/** Set when embedded in the home screen, which owns the navigation history entry. */
+	internal var parentFocusMemory: CinemaFocusMemory? by mutableStateOf(null)
+	private val ownFocusMemory = CinemaFocusMemory()
 	private val viewModel by viewModel<SearchViewModel>()
 	private val navigationRepository by inject<NavigationRepository>()
 	private val api by inject<ApiClient>()
@@ -48,21 +51,23 @@ class CinemaSearchFragment : Fragment() {
 		var query by rememberSaveable { mutableStateOf(arguments?.getString(ARGUMENT_QUERY).orEmpty()) }
 		LaunchedEffect(Unit) { if (query.isNotBlank()) viewModel.searchImmediately(query) }
 
-		CinemaTheme {
-			CinemaSearchScreen(
-				query = query,
-				results = results,
-				onQueryChange = {
-					query = it
-					viewModel.searchDebounced(it)
-				},
-				onQuerySubmit = { viewModel.searchImmediately(query) },
-				onOpenItem = ::openItem,
-				posterUrl = ::posterUrl,
-				modifier = Modifier.fillMaxSize(),
-				requestInitialFocus = arguments?.getBoolean(CINEMA_EMBEDDED) != true,
-				leftFocusRequester = railFocusRequester,
-			)
+		ProvideCinemaFocusMemory(parentFocusMemory ?: ownFocusMemory) {
+			CinemaTheme {
+				CinemaSearchScreen(
+					query = query,
+					results = results,
+					onQueryChange = {
+						query = it
+						viewModel.searchDebounced(it)
+					},
+					onQuerySubmit = { viewModel.searchImmediately(query) },
+					onOpenItem = ::openItem,
+					posterUrl = ::posterUrl,
+					modifier = Modifier.fillMaxSize(),
+					requestInitialFocus = arguments?.getBoolean(CINEMA_EMBEDDED) != true,
+					leftFocusRequester = railFocusRequester,
+				)
+			}
 		}
 	}
 

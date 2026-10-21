@@ -1,22 +1,41 @@
 package org.jellyfin.androidtv.ui.startup.fragment
 
-import android.content.Context
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.core.view.isGone
-import androidx.core.view.isVisible
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.add
 import androidx.fragment.app.commit
 import androidx.fragment.app.replace
+import androidx.fragment.compose.content
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -34,17 +53,27 @@ import org.jellyfin.androidtv.auth.repository.AuthenticationRepository
 import org.jellyfin.androidtv.auth.repository.ServerRepository
 import org.jellyfin.androidtv.auth.repository.ServerUserRepository
 import org.jellyfin.androidtv.data.service.BackgroundService
-import org.jellyfin.androidtv.databinding.FragmentServerBinding
-import org.jellyfin.androidtv.ui.ServerButtonView
-import org.jellyfin.androidtv.ui.card.UserCardView
+import org.jellyfin.androidtv.ui.base.Text
+import org.jellyfin.androidtv.ui.cinema.CinemaButton
+import org.jellyfin.androidtv.ui.cinema.CinemaColors
+import org.jellyfin.androidtv.ui.cinema.CinemaDimens
+import org.jellyfin.androidtv.ui.cinema.CinemaInitialFocus
+import org.jellyfin.androidtv.ui.cinema.CinemaPanel
+import org.jellyfin.androidtv.ui.cinema.CinemaSectionTitle
+import org.jellyfin.androidtv.ui.cinema.CinemaStartupFrame
+import org.jellyfin.androidtv.ui.cinema.CinemaStartupUserCard
+import org.jellyfin.androidtv.ui.cinema.CinemaTheme
 import org.jellyfin.androidtv.ui.startup.StartupViewModel
-import org.jellyfin.androidtv.util.ListAdapter
 import org.jellyfin.androidtv.util.MarkdownRenderer
 import org.jellyfin.androidtv.util.createBundle
 import org.jellyfin.sdk.model.serializer.toUUIDOrNull
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.activityViewModel
 
+/**
+ * Account picker ("Who is watching?") in the cinema design. Uses [CinemaStartupFrame] so
+ * it looks exactly like the library pages that follow after signing in.
+ */
 class ServerFragment : Fragment() {
 	companion object {
 		const val ARG_SERVER_ID = "server_id"
@@ -55,117 +84,96 @@ class ServerFragment : Fragment() {
 	private val authenticationRepository: AuthenticationRepository by inject()
 	private val serverUserRepository: ServerUserRepository by inject()
 	private val backgroundService: BackgroundService by inject()
-	private var _binding: FragmentServerBinding? = null
-	private val binding get() = _binding!!
 
 	private val serverIdArgument get() = arguments?.getString(ARG_SERVER_ID)?.ifBlank { null }?.toUUIDOrNull()
+	private val server = MutableStateFlow<Server?>(null)
 
 	override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-		val server = serverIdArgument?.let(startupViewModel::getServer)
+		val initialServer = serverIdArgument?.let(startupViewModel::getServer)
 
-		if (server == null) {
+		if (initialServer == null) {
 			navigateFragment<SelectServerFragment>(keepToolbar = true, keepHistory = false)
 			return null
 		}
 
-		_binding = FragmentServerBinding.inflate(inflater, container, false)
-
-		val userAdapter = UserAdapter(requireContext(), server, startupViewModel, authenticationRepository, serverUserRepository)
-		userAdapter.onItemPressed = { user ->
-			startupViewModel.authenticate(server, user).onEach { state ->
-				when (state) {
-					// Ignored states
-					AuthenticatingState -> Unit
-					AuthenticatedState -> Unit
-					// Actions
-					RequireSignInState -> navigateFragment<UserLoginFragment>(createBundle {
-						putString(UserLoginFragment.ARG_SERVER_ID, server.id.toString())
-						putString(UserLoginFragment.ARG_USERNAME, user.name)
-					})
-					// Errors
-					ServerUnavailableState,
-					is ApiClientErrorLoginState -> Toast.makeText(context, R.string.server_connection_failed, Toast.LENGTH_LONG).show()
-
-					is ServerVersionNotSupported -> Toast.makeText(
-						context,
-						getString(
-							R.string.server_issue_outdated_version,
-							state.server.version,
-							ServerRepository.recommendedServerVersion.toString()
-						),
-						Toast.LENGTH_LONG
-					).show()
-				}
-			}.launchIn(lifecycleScope)
-		}
-		binding.users.adapter = userAdapter
-
-		startupViewModel.users
-			.flowWithLifecycle(viewLifecycleOwner.lifecycle, Lifecycle.State.STARTED)
-			.onEach { users ->
-				userAdapter.items = users
-
-				binding.users.isFocusable = users.any()
-				binding.noUsersWarning.isVisible = users.isEmpty()
-				binding.root.requestFocus()
-			}.launchIn(viewLifecycleOwner.lifecycleScope)
-
-		startupViewModel.loadUsers(server)
-
-		onServerChange(server)
+		server.value = initialServer
+		startupViewModel.loadUsers(initialServer)
 
 		lifecycleScope.launch {
 			lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-				val updated = startupViewModel.updateServer(server)
-				if (updated) startupViewModel.getServer(server.id)?.let(::onServerChange)
+				val current = server.value ?: return@repeatOnLifecycle
+				val updated = startupViewModel.updateServer(current)
+				if (updated) startupViewModel.getServer(current.id)?.let { server.value = it }
 			}
 		}
 
-		return binding.root
-	}
+		return content {
+			val currentServer by server.collectAsState()
+			val users by startupViewModel.users.collectAsState()
 
-	override fun onDestroyView() {
-		super.onDestroyView()
-
-		_binding = null
-	}
-
-	private fun onServerChange(server: Server) {
-		binding.loginDisclaimer.text = server.loginDisclaimer?.let { markdownRenderer.toMarkdownSpanned(it) }
-
-		binding.serverButton.apply {
-			state = ServerButtonView.State.EDIT
-			name = server.name
-			address = server.address
-			version = server.version
-		}
-
-		binding.addUserButton.setOnClickListener {
-			navigateFragment<UserLoginFragment>(
-				args = createBundle {
-					putString(UserLoginFragment.ARG_SERVER_ID, server.id.toString())
-					putString(UserLoginFragment.ARG_USERNAME, null)
+			CinemaTheme {
+				currentServer?.let { server ->
+					ServerScreen(
+						server = server,
+						users = users,
+						imageUrl = { user -> startupViewModel.getUserImage(server, user) },
+						disclaimer = server.loginDisclaimer?.let { markdownRenderer.toMarkdownSpanned(it).toString() },
+						onSelectUser = { user -> onUserSelected(server, user) },
+						onAddUser = {
+							navigateFragment<UserLoginFragment>(
+								args = createBundle {
+									putString(UserLoginFragment.ARG_SERVER_ID, server.id.toString())
+									putString(UserLoginFragment.ARG_USERNAME, null)
+								}
+							)
+						},
+						onSelectServer = { navigateFragment<SelectServerFragment>(keepToolbar = true) },
+						onHelp = {
+							parentFragmentManager.commit {
+								addToBackStack(null)
+								replace<ConnectHelpAlertFragment>(R.id.content_view)
+							}
+						},
+						onSignOut = { user ->
+							if (user is PrivateUser) authenticationRepository.logout(user)
+							startupViewModel.loadUsers(server)
+						},
+						onRemove = { user ->
+							if (user is PrivateUser) serverUserRepository.deleteStoredUser(user)
+							startupViewModel.loadUsers(server)
+						},
+					)
 				}
-			)
+			}
 		}
+	}
 
-		binding.serverButton.setOnClickListener {
-			navigateFragment<SelectServerFragment>(keepToolbar = true)
-		}
+	private fun onUserSelected(server: Server, user: User) {
+		startupViewModel.authenticate(server, user).onEach { state ->
+			when (state) {
+				// Ignored states
+				AuthenticatingState -> Unit
+				AuthenticatedState -> Unit
+				// Actions
+				RequireSignInState -> navigateFragment<UserLoginFragment>(createBundle {
+					putString(UserLoginFragment.ARG_SERVER_ID, server.id.toString())
+					putString(UserLoginFragment.ARG_USERNAME, user.name)
+				})
+				// Errors
+				ServerUnavailableState,
+				is ApiClientErrorLoginState -> Toast.makeText(context, R.string.server_connection_failed, Toast.LENGTH_LONG).show()
 
-		if (!server.versionSupported) {
-			binding.notification.isVisible = true
-			binding.notification.text = getString(
-				R.string.server_unsupported_notification,
-				server.version,
-				ServerRepository.recommendedServerVersion.toString(),
-			)
-		} else if (!server.setupCompleted) {
-			binding.notification.isVisible = true
-			binding.notification.text = getString(R.string.server_setup_incomplete)
-		} else {
-			binding.notification.isGone = true
-		}
+				is ServerVersionNotSupported -> Toast.makeText(
+					context,
+					getString(
+						R.string.server_issue_outdated_version,
+						state.server.version,
+						ServerRepository.recommendedServerVersion.toString()
+					),
+					Toast.LENGTH_LONG
+				).show()
+			}
+		}.launchIn(lifecycleScope)
 	}
 
 	private inline fun <reified F : Fragment> navigateFragment(
@@ -176,6 +184,7 @@ class ServerFragment : Fragment() {
 		requireActivity()
 			.supportFragmentManager
 			.commit {
+				setCustomAnimations(R.anim.fade_in, R.anim.fade_out, R.anim.fade_in, R.anim.fade_out)
 				if (keepToolbar) {
 					replace<StartupToolbarFragment>(R.id.content_view)
 					add<F>(R.id.content_view, null, args)
@@ -197,53 +206,148 @@ class ServerFragment : Fragment() {
 		if (server != null) startupViewModel.loadUsers(server)
 		else navigateFragment<SelectServerFragment>(keepToolbar = true)
 	}
+}
 
-	private class UserAdapter(
-		private val context: Context,
-		private val server: Server,
-		private val startupViewModel: StartupViewModel,
-		private val authenticationRepository: AuthenticationRepository,
-		private val serverUserRepository: ServerUserRepository,
-	) : ListAdapter<User, UserAdapter.ViewHolder>() {
-		var onItemPressed: (User) -> Unit = {}
+@Composable
+private fun ServerScreen(
+	server: Server,
+	users: List<User>,
+	imageUrl: (User) -> String?,
+	disclaimer: String?,
+	onSelectUser: (User) -> Unit,
+	onAddUser: () -> Unit,
+	onSelectServer: () -> Unit,
+	onHelp: () -> Unit,
+	onSignOut: (User) -> Unit,
+	onRemove: (User) -> Unit,
+) {
+	var menuUser by remember { mutableStateOf<User?>(null) }
+	val firstUserFocusRequester = remember { FocusRequester() }
+	val addUserFocusRequester = remember { FocusRequester() }
+	val menuFocusRequester = remember { FocusRequester() }
 
-		override fun areItemsTheSame(old: User, new: User): Boolean = old.id == new.id
-
-		override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-			val cardView = UserCardView(context)
-
-			return ViewHolder(cardView)
-		}
-
-		override fun onBindViewHolder(holder: ViewHolder, user: User) {
-			holder.cardView.name = user.name
-			holder.cardView.image = startupViewModel.getUserImage(server, user)
-
-			holder.cardView.setPopupMenu {
-				// Logout button
-				if (user is PrivateUser && user.accessToken != null) {
-					item(context.getString(R.string.lbl_sign_out)) {
-						authenticationRepository.logout(user)
-					}
-				}
-
-				// Remove button
-				if (user is PrivateUser) {
-					item(context.getString(R.string.lbl_remove)) {
-						serverUserRepository.deleteStoredUser(user)
-						startupViewModel.loadUsers(server)
-					}
-				}
-			}
-
-			holder.cardView.setOnClickListener {
-				onItemPressed(user)
-			}
-		}
-
-		private class ViewHolder(
-			val cardView: UserCardView,
-		) : RecyclerView.ViewHolder(cardView)
+	CinemaInitialFocus(
+		requester = if (users.isNotEmpty()) firstUserFocusRequester else addUserFocusRequester,
+		key = users.isNotEmpty(),
+	)
+	LaunchedEffect(menuUser) {
+		if (menuUser != null) runCatching { menuFocusRequester.requestFocus() }
 	}
+	BackHandler(enabled = menuUser != null) { menuUser = null }
+
+	CinemaStartupFrame(
+		title = stringResource(R.string.who_is_watching),
+		headerCenter = {
+			CinemaButton(
+				text = server.name,
+				icon = painterResource(R.drawable.ic_jellyfin),
+				onClick = onSelectServer,
+			)
+		},
+	) {
+		val notification = when {
+			!server.versionSupported -> stringResource(
+				R.string.server_unsupported_notification,
+				server.version.orEmpty(),
+				ServerRepository.recommendedServerVersion.toString(),
+			)
+
+			!server.setupCompleted -> stringResource(R.string.server_setup_incomplete)
+			else -> null
+		}
+		if (notification != null) {
+			CinemaPanel(Modifier.fillMaxWidth()) {
+				Text(
+					text = notification,
+					color = CinemaColors.Text,
+					fontSize = CinemaDimens.BodySize,
+					modifier = Modifier.padding(20.dp),
+				)
+			}
+		}
+
+		if (users.isEmpty()) {
+			Text(
+				text = stringResource(R.string.no_user_warning),
+				color = CinemaColors.Muted,
+				fontSize = CinemaDimens.BodySize,
+			)
+		} else {
+			LazyRow(
+				modifier = Modifier
+					.fillMaxWidth()
+					.focusRestorer(),
+				horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
+			) {
+				itemsIndexed(users, key = { _, user -> user.id }) { index, user ->
+					CinemaStartupUserCard(
+						name = user.name,
+						imageUrl = imageUrl(user),
+						onClick = { onSelectUser(user) },
+						onLongClick = if (user is PrivateUser) ({ menuUser = user }) else null,
+						modifier = if (index == 0) Modifier.focusRequester(firstUserFocusRequester) else Modifier,
+					)
+				}
+			}
+		}
+
+		val selectedMenuUser = menuUser
+		if (selectedMenuUser != null) {
+			CinemaPanel(Modifier.fillMaxWidth()) {
+				Column(
+					modifier = Modifier.padding(24.dp),
+					verticalArrangement = Arrangement.spacedBy(16.dp),
+				) {
+					CinemaSectionTitle(stringResource(R.string.cinema_login_account_options, selectedMenuUser.name))
+					Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+						val canSignOut = selectedMenuUser is PrivateUser && selectedMenuUser.accessToken != null
+						if (canSignOut) {
+							CinemaButton(
+								text = stringResource(R.string.lbl_sign_out),
+								icon = painterResource(R.drawable.ic_logout),
+								onClick = { onSignOut(selectedMenuUser); menuUser = null },
+								modifier = Modifier.focusRequester(menuFocusRequester),
+							)
+						}
+						CinemaButton(
+							text = stringResource(R.string.lbl_remove),
+							icon = painterResource(R.drawable.ic_trash),
+							onClick = { onRemove(selectedMenuUser); menuUser = null },
+							modifier = if (canSignOut) Modifier else Modifier.focusRequester(menuFocusRequester),
+						)
+						CinemaButton(
+							text = stringResource(R.string.lbl_cancel),
+							onClick = { menuUser = null },
+						)
+					}
+				}
+			}
+		}
+
+		Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+			CinemaButton(
+				text = stringResource(R.string.add_user),
+				icon = painterResource(R.drawable.ic_user_add),
+				primary = true,
+				onClick = onAddUser,
+				modifier = Modifier.focusRequester(addUserFocusRequester),
+			)
+			CinemaButton(
+				text = stringResource(R.string.help),
+				icon = painterResource(R.drawable.ic_help),
+				onClick = onHelp,
+			)
+		}
+
+		if (!disclaimer.isNullOrBlank()) {
+			Text(
+				text = disclaimer,
+				color = CinemaColors.Muted,
+				fontSize = CinemaDimens.MetaSize,
+				maxLines = 3,
+			)
+		}
+	}
+
 }
 

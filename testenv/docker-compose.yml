@@ -1,0 +1,16 @@
+# Lokaler Jellyfin-Testserver für die Entwicklung der Android-TV-App.
+# Start über ./testenv.sh start (siehe README.md)
+services:
+  jellyfin:
+    image: jellyfin/jellyfin:latest
+    container_name: jellyfin-testenv
+    ports:
+      - "8096:8096"
+    volumes:
+      - ./data/config:/config
+      - ./data/cache:/cache
+      - ./media:/media:ro
+    environment:
+      - TZ=Europe/Berlin
+    restart: unless-stopped
+

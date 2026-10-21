@@ -59,6 +59,8 @@ import org.jellyfin.androidtv.ui.livetv.LiveTvGuideFragmentHelperKt;
 import org.jellyfin.androidtv.ui.livetv.TvManager;
 import org.jellyfin.androidtv.ui.navigation.Destinations;
 import org.jellyfin.androidtv.ui.navigation.NavigationRepository;
+import org.jellyfin.androidtv.ui.playback.cinema.CinemaPlayerFocusTarget;
+import org.jellyfin.androidtv.ui.playback.cinema.CinemaPlayerOverlayState;
 import org.jellyfin.androidtv.ui.playback.overlay.LeanbackOverlayFragment;
 import org.jellyfin.androidtv.ui.presentation.CardPresenter;
 import org.jellyfin.androidtv.ui.presentation.ChannelCardPresenter;
@@ -127,6 +129,11 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
 
     protected LeanbackOverlayFragment leanbackOverlayFragment;
 
+    // Cinema overlay (regular videos). Live TV keeps the leanback controls and the guide.
+    private boolean cinemaMode = false;
+    @Nullable
+    private CinemaPlayerOverlayState cinemaOverlayState;
+
     private final Lazy<org.jellyfin.sdk.api.client.ApiClient> api = inject(org.jellyfin.sdk.api.client.ApiClient.class);
     private final Lazy<MediaManager> mediaManager = inject(MediaManager.class);
     private final Lazy<VideoQueueManager> videoQueueManager = inject(VideoQueueManager.class);
@@ -163,7 +170,7 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
 
         // setup fade task
         mHideTask = () -> {
-            if (mIsVisible) {
+            if (mIsVisible && !cinemaMode) {
                 leanbackOverlayFragment.hideOverlay();
             }
         };
@@ -240,6 +247,9 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
         if (mItemsToPlay == null || mItemsToPlay.isEmpty()) return;
 
         prepareOverlayFragment();
+
+        cinemaMode = CinemaPlayerOverlayHelperKt.usesCinemaPlayerOverlay(mItemsToPlay);
+        if (cinemaMode) cinemaOverlayState = CinemaPlayerOverlayHelperKt.setupCinemaOverlay(this);
 
         //pre-load animations
         fadeOut = AnimationUtils.loadAnimation(requireContext(), R.anim.fade_out);
@@ -713,6 +723,12 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
     }
 
     public void show() {
+        if (cinemaMode) {
+            if (cinemaOverlayState != null && !cinemaOverlayState.getControlsVisible())
+                cinemaOverlayState.showControls(CinemaPlayerFocusTarget.PlayPause);
+            return;
+        }
+
         // Already showing!
         if (mIsVisible) return;
 
@@ -722,12 +738,24 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
     }
 
     public void hide() {
+        if (cinemaMode) {
+            if (cinemaOverlayState != null) cinemaOverlayState.hide();
+            return;
+        }
+
         // Can't hide what's already hidden
         if (!mIsVisible) return;
 
         mIsVisible = false;
         binding.topPanel.startAnimation(fadeOut);
         binding.skipOverlay.setSkipUiEnabled(!mIsVisible && !mGuideVisible && !mPopupPanelVisible);
+    }
+
+    /** Called by the cinema overlay whenever it is shown or hidden. */
+    public void onCinemaOverlayVisibilityChanged(boolean visible) {
+        mIsVisible = visible;
+        if (binding != null)
+            binding.skipOverlay.setSkipUiEnabled(!mIsVisible && !mGuideVisible && !mPopupPanelVisible);
     }
 
     private void showChapterPanel() {
@@ -741,6 +769,7 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
         binding.popupArea.startAnimation(hidePopup);
         mPopupPanelVisible = false;
         binding.skipOverlay.setSkipUiEnabled(!mIsVisible && !mGuideVisible && !mPopupPanelVisible);
+        if (cinemaMode) CinemaPlayerOverlayHelperKt.focusCinemaOverlay(this);
     }
 
     public void showGuide() {
@@ -1225,6 +1254,13 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
 
     public void setFadingEnabled(boolean value) {
         mFadeEnabled = value;
+        if (cinemaMode) {
+            // The cinema overlay runs its own auto hide timer.
+            mHandler.removeCallbacks(mHideTask);
+            if (cinemaOverlayState != null) cinemaOverlayState.setAutoHideEnabled(value);
+            return;
+        }
+
         if (mFadeEnabled) {
             startFadeTimer();
         } else {
@@ -1270,6 +1306,9 @@ public class CustomPlaybackOverlayFragment extends Fragment implements LiveTvGui
             } else {
                 prepareChapterAdapter();
             }
+
+            if (cinemaMode && cinemaOverlayState != null)
+                CinemaPlayerOverlayHelperKt.updateCinemaOverlay(this, cinemaOverlayState, current);
         }
     }
 

@@ -1,6 +1,7 @@
 package org.jellyfin.androidtv.ui.cinema
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -56,6 +57,22 @@ internal fun Modifier.railOnLeft(
 	enabled: Boolean,
 ): Modifier = if (railFocusRequester == null || !enabled) this
 else focusProperties { left = railFocusRequester }
+
+/**
+ * D-Pad contract (spec §2.1): the sidebar is only entered with `DPAD_LEFT`. Vertical
+ * navigation must never leave the content — otherwise the 2D focus search picks a rail
+ * icon whenever it finds no target above/below, and the rail switches the page as soon
+ * as it gets the focus.
+ */
+internal fun Modifier.keepVerticalFocusInside(): Modifier = this
+	.focusProperties {
+		onExit = {
+			if (requestedFocusDirection == FocusDirection.Up || requestedFocusDirection == FocusDirection.Down) {
+				cancelFocusChange()
+			}
+		}
+	}
+	.focusGroup()
 
 /** Callbacks the host fragment wires up to navigation and playback. */
 data class CinemaHomeActions(
@@ -88,7 +105,8 @@ fun CinemaHomeScreen(
 	selectedRailItem: CinemaRailItem? = null,
 	secondaryContent: (@Composable (FocusRequester) -> Unit)? = null,
 ) {
-	val listState = rememberLazyListState()
+	val focusMemory = LocalCinemaFocusMemory.current
+	val listState = rememberCinemaLazyListState("home")
 	val heroFocusRequester = remember { FocusRequester() }
 	// DPAD_LEFT at the left edge of the content must enter the sidebar (spec §2.1) — the
 	// default focus search walks up into the scrollable instead and jumps to the top.
@@ -108,7 +126,12 @@ fun CinemaHomeScreen(
 		CinemaMediaType.Shows -> CinemaRailItem.Shows
 	}
 	LaunchedEffect(state.mediaType, state.view) {
-		listState.scrollToItem(0)
+		// Only jump to the top when the content really changed — not when the view is
+		// recreated after returning from a detail screen.
+		val key = "${state.mediaType}/${state.view}"
+		val previous = focusMemory?.scrollResetKey
+		if (focusMemory == null || (previous != null && previous != key)) listState.scrollToItem(0)
+		focusMemory?.scrollResetKey = key
 	}
 
 	CinemaBackground(modifier) {
@@ -128,6 +151,7 @@ fun CinemaHomeScreen(
 			CinemaShell(
 				modifier = Modifier
 					.fillMaxSize()
+					.keepVerticalFocusInside()
 					.semantics { testTagsAsResourceId = true }
 					.testTag(
 						if (!state.loading && state.view == CinemaView.All && state.catalog.isNotEmpty()) "cinema-home-ready"
@@ -185,7 +209,7 @@ fun CinemaHomeScreen(
 								posterUrl = posterUrl,
 								thumbUrl = thumbUrl,
 								heroFocusRequester = heroFocusRequester,
-								requestHeroFocus = !heroFocusRequested,
+								requestHeroFocus = !heroFocusRequested && focusMemory?.isRestoring != true,
 								onHeroFocusRequested = { heroFocusRequested = true },
 								heroHeight = heroHeight,
 								railFocusRequester = railFocusRequester,
@@ -306,6 +330,7 @@ private fun LazyListScope.allView(
 					)
 
 					LazyRow(
+						state = rememberCinemaLazyListState("continue-watching"),
 						modifier = Modifier
 							.fillMaxWidth()
 							.focusRestorer(),
@@ -321,6 +346,7 @@ private fun LazyListScope.allView(
 								onClick = { actions.onPlayItem(item) },
 								onLongClick = { actions.onItemMenu(item) },
 								modifier = Modifier.railOnLeft(railFocusRequester, index == 0),
+								focusKey = "continue-${item.id}",
 							)
 						}
 					}
@@ -396,6 +422,7 @@ private fun LazyListScope.genresView(
 			CinemaSectionTitle(row.name)
 
 			LazyRow(
+				state = rememberCinemaLazyListState("genre-${row.name}"),
 				modifier = Modifier
 					.fillMaxWidth()
 					.focusRestorer(),
@@ -411,6 +438,7 @@ private fun LazyListScope.genresView(
 						onLongClick = { actions.onItemMenu(item) },
 						width = CinemaDimens.RowCardWidth,
 						modifier = Modifier.railOnLeft(railFocusRequester, index == 0),
+						focusKey = "genre-${row.name}-${item.id}",
 					)
 				}
 			}

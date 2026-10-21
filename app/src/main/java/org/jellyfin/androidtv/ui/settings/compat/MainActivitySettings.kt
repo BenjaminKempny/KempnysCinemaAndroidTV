@@ -18,6 +18,7 @@ fun MainActivitySettings() {
 	ProvideRouter(routes, Routes.MAIN) {
 		SettingsDialog(
 			visible = visible,
+			fullPage = true,
 			onDismissRequest = { viewModel.hide() }
 		) {
 			SettingsRouterContent()

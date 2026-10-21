@@ -86,13 +86,19 @@ fun CinemaDetailScreen(
 	val item = state.item
 	val playFocusRequester = remember { FocusRequester() }
 	var contentWarningsExpanded by rememberSaveable(item?.id) { mutableStateOf(false) }
+	val focusMemory = LocalCinemaFocusMemory.current
+	val listState = rememberCinemaLazyListState("detail")
 
 	LaunchedEffect(item?.id, state.isCollection, personFocusReady(state)) {
+		// Returning from a season, collection entry or person gives the focus back to that
+		// card instead of the play button.
+		if (focusMemory?.isRestoring == true) return@LaunchedEffect
 		if (item != null && !state.isCollection) runCatching { playFocusRequester.requestFocus() }
 	}
 
 	CinemaBackground(modifier, backdropUrl = state.blurredBackdropUrl) {
 		CinemaLazyColumn(
+			state = listState,
 			modifier = Modifier
 				.fillMaxSize()
 				.focusRestorer(),
@@ -282,6 +288,7 @@ private fun LazyListScope.detailContent(
 		item(key = "cast") {
 			CinemaDetailSection(title = stringResource(R.string.lbl_cast_crew)) {
 				LazyRow(
+					state = rememberCinemaLazyListState("cast"),
 					modifier = Modifier
 						.fillMaxWidth()
 						.focusRestorer(),
@@ -294,6 +301,7 @@ private fun LazyListScope.detailContent(
 							role = person.role?.takeIf { it.isNotBlank() } ?: person.type.label(),
 							imageUrl = personImageUrl(person),
 							onClick = { actions.onOpenPerson(person) },
+							focusKey = "person-${person.id}-${person.type}-${person.role}",
 						)
 					}
 				}
@@ -373,6 +381,7 @@ private fun LazyListScope.seriesSections(
 						onClick = { actions.onPlayItem(nextUp) },
 						onLongClick = { actions.onOpenItem(nextUp) },
 						width = NEXT_UP_WIDTH,
+						focusKey = "next-up",
 					)
 				}
 			}
@@ -383,6 +392,7 @@ private fun LazyListScope.seriesSections(
 		item(key = "seasons") {
 			CinemaDetailSection(title = stringResource(R.string.lbl_seasons)) {
 				LazyRow(
+					state = rememberCinemaLazyListState("seasons"),
 					modifier = Modifier
 						.fillMaxWidth()
 						.focusRestorer(),
@@ -396,6 +406,7 @@ private fun LazyListScope.seriesSections(
 							imageUrl = posterUrl(season),
 							onClick = { actions.onOpenItem(season) },
 							width = CinemaDimens.RowCardWidth,
+							focusKey = "season-${season.id}",
 							badge = (season.childCount ?: season.userData?.unplayedItemCount)
 								?.takeIf { it > 0 }
 								?.toString(),
@@ -427,6 +438,7 @@ private fun LazyListScope.episodeList(
 			played = episode.userData?.played == true,
 			onClick = { actions.onPlayItem(episode) },
 			onLongClick = { actions.onOpenItem(episode) },
+			focusKey = "episode-${episode.id}",
 		)
 	}
 }

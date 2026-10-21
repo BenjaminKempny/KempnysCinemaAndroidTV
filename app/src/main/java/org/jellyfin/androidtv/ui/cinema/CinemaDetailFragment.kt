@@ -22,6 +22,7 @@ class CinemaDetailFragment : Fragment() {
 	private val viewModel by viewModel<CinemaDetailViewModel>()
 	private val navigationRepository by inject<NavigationRepository>()
 	private val playbackLauncher by inject<PlaybackLauncher>()
+	private val focusMemory = CinemaFocusMemory()
 
 	private var loaded = false
 
@@ -45,30 +46,33 @@ class CinemaDetailFragment : Fragment() {
 	) = content {
 		val state by viewModel.state.collectAsState()
 
-		CinemaTheme {
-			CinemaDetailScreen(
-				state = state,
-				actions = CinemaDetailActions(
-					onBack = { navigationRepository.goBack() },
-					onHome = { navigationRepository.reset(Destinations.home) },
-					onPlay = { viewModel.state.value.playTarget?.let(::play) },
-					onPlayItem = ::play,
-					onOpenItem = ::openItem,
-					onOpenPerson = { person ->
-						navigationRepository.navigate(Destinations.itemDetails(person.id))
-					},
-					onSelectSort = viewModel::setSort,
-				),
-				posterUrl = viewModel::posterUrl,
-				thumbUrl = viewModel::thumbUrl,
-				personImageUrl = viewModel::personImageUrl,
-				modifier = Modifier.fillMaxSize(),
-			)
+		ProvideCinemaFocusMemory(focusMemory) {
+			CinemaTheme {
+				CinemaDetailScreen(
+					state = state,
+					actions = CinemaDetailActions(
+						onBack = { navigationRepository.goBack() },
+						onHome = { navigationRepository.reset(Destinations.home) },
+						onPlay = { viewModel.state.value.playTarget?.let(::play) },
+						onPlayItem = ::play,
+						onOpenItem = ::openItem,
+						onOpenPerson = { person ->
+							navigationRepository.navigate(Destinations.itemDetails(person.id))
+						},
+						onSelectSort = viewModel::setSort,
+					),
+					posterUrl = viewModel::posterUrl,
+					thumbUrl = viewModel::thumbUrl,
+					personImageUrl = viewModel::personImageUrl,
+					modifier = Modifier.fillMaxSize(),
+				)
+			}
 		}
 	}
 
 	override fun onResume() {
 		super.onResume()
+		focusMemory.startRestore()
 		// Playback position, watched and favorite state can change while away. The very
 		// first resume follows onCreate's load, so reloading again would be wasteful.
 		if (loaded) viewModel.refresh() else loaded = true

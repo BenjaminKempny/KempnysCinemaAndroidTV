@@ -665,6 +665,18 @@
     <string name="preference_enable_pgs_description">Benötigt Transkodierung falls deaktiviert</string>
     <string name="preference_enable_ass_description">Experimentelles Feature, könnte nicht zuverlässig arbeiten</string>
     <string name="cinema_ends_at">Endet um %1$s</string>
+    <string name="cinema_player_ends_at">Ende um %1$s</string>
+    <string name="cinema_player_remaining">Noch %1$s</string>
+    <string name="cinema_player_hours_minutes">%1$d Std. %2$d Min.</string>
+    <string name="cinema_player_minutes">%1$d Min.</string>
+    <string name="cinema_player_season_episode">Staffel %1$d · Folge %2$d</string>
+    <string name="cinema_player_episode">Folge %1$d</string>
+    <string name="cinema_player_paused">Pausiert</string>
+    <string name="cinema_player_audio">Audio</string>
+    <string name="cinema_player_subtitles">Untertitel</string>
+    <string name="cinema_player_more">Mehr</string>
+    <string name="cinema_player_rewind">%1$d Sekunden zurück</string>
+    <string name="cinema_player_forward">%1$d Sekunden vor</string>
     <string name="cinema_tags">Markierungen:</string>
     <string name="pref_cinema_light_theme">Helles Cinema-Design</string>
     <string name="pref_cinema_light_theme_description">Helle Darstellung für Startseite, Detailansicht, Suche und Profil verwenden</string>
@@ -723,5 +735,9 @@
     <string name="cinema_died">Gestorben %1$s</string>
     <string name="cinema_profile_accounts">Konten auf diesem Server</string>
     <string name="cinema_profile_signed_in">Angemeldet als</string>
+    <string name="cinema_login_tab_quickconnect">Quick Connect</string>
+    <string name="cinema_login_tab_password">Passwort</string>
+    <string name="cinema_login_quickconnect_waiting">Warte auf Code…</string>
+    <string name="cinema_login_account_options">Optionen für %1$s</string>
     <string name="cinema_profile_requires_login">Passwort erforderlich</string>
 </resources>

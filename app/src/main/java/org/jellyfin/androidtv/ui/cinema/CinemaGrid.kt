@@ -50,6 +50,7 @@ fun LazyListScope.cinemaGrid(
 						onClick = { onOpenItem(item) },
 						onLongClick = onItemMenu?.let { menu -> { menu(item) } },
 						width = CinemaDimens.GridCardWidth,
+						focusKey = "$keyPrefix-${item.id}",
 						modifier = Modifier
 							.weight(1f)
 							.railOnLeft(railFocusRequester, columnIndex == 0)

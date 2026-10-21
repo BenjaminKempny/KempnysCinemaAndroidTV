@@ -307,6 +307,58 @@ public class CustomPlaybackTransportControlGlue extends PlaybackTransportControl
         }
     }
 
+    // region Cinema overlay entry points
+    // The cinema player overlay replaces the leanback transport row for regular videos but
+    // reuses the existing popup based actions for track, quality, speed, zoom and chapters.
+
+    public static final int CINEMA_ACTION_AUDIO = 0;
+    public static final int CINEMA_ACTION_SUBTITLES = 1;
+    public static final int CINEMA_ACTION_QUALITY = 2;
+    public static final int CINEMA_ACTION_SPEED = 3;
+    public static final int CINEMA_ACTION_ZOOM = 4;
+    public static final int CINEMA_ACTION_CHAPTERS = 5;
+
+    public void performCinemaAction(int action, View anchor) {
+        CustomAction target;
+        switch (action) {
+            case CINEMA_ACTION_AUDIO:
+                target = selectAudioAction;
+                break;
+            case CINEMA_ACTION_SUBTITLES:
+                target = closedCaptionsAction;
+                break;
+            case CINEMA_ACTION_QUALITY:
+                target = selectQualityAction;
+                break;
+            case CINEMA_ACTION_SPEED:
+                target = playbackSpeedAction;
+                break;
+            case CINEMA_ACTION_ZOOM:
+                target = zoomAction;
+                break;
+            case CINEMA_ACTION_CHAPTERS:
+                target = chapterAction;
+                break;
+            default:
+                return;
+        }
+        target.handleClickAction(playbackController, getPlayerAdapter(), getContext(), anchor);
+    }
+
+    public boolean cinemaHasSubtitles() {
+        return getPlayerAdapter().hasSubs();
+    }
+
+    public boolean cinemaHasMultiAudio() {
+        return getPlayerAdapter().hasMultiAudio();
+    }
+
+    public boolean cinemaHasChapters() {
+        return getPlayerAdapter().hasChapters();
+    }
+
+    // endregion
+
     private void setEndTime() {
         if (mEndsText == null || getPlayerAdapter().getDuration() < 1)
             return;

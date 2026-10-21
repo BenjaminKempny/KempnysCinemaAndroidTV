@@ -152,56 +152,81 @@ val CinemaDarkPalette = CinemaPalette(
 )
 
 /**
- * Light counterpart of [CinemaDarkPalette]. Keeps the same cool blue-grey hue family but
- * inverts the luminance so the shell reads as paper with dark ink.
+ * Pastel tones shared by the light cinema palette and the light settings colour scheme.
+ * Soft lavender is the lead hue, blush and mint add warmth and freshness; text uses a deep
+ * plum ink instead of pure black so the page stays gentle but readable from the couch.
+ */
+object CinemaPastel {
+	val Blush = Color(0xFFFCEEF3)
+	val Lavender = Color(0xFFF1EDFB)
+	val Mint = Color(0xFFE7F5F1)
+
+	val LavenderSoft = Color(0xFFE6DFF8)
+	val LavenderMid = Color(0xFFC9BDF0)
+	val LavenderStrong = Color(0xFF7F6CD0)
+
+	val Ink = Color(0xFF2B2540)
+	val InkSoft = Color(0xFF4A4363)
+	val InkMuted = Color(0xFF787291)
+
+	val Paper = Color(0xFFFFFCFE)
+
+	/** Diagonal blush -> lavender -> mint wash used as page background. */
+	val PageBrush: Brush
+		get() = Brush.linearGradient(
+			0f to Blush,
+			0.5f to Lavender,
+			1f to Mint,
+		)
+}
+
+/**
+ * Light counterpart of [CinemaDarkPalette]. Uses a soft pastel family (lavender, blush,
+ * mint) on paper-white surfaces with plum ink for text.
  */
 val CinemaLightPalette = CinemaPalette(
 	isLight = true,
-	pageBase = Color(0xFFF3F6FA),
-	pageGradientTop = Color(0xFFFFFFFF),
-	pageGradientMid = Color(0xFFEFF3F9),
-	shellTop = Color(0xF2FFFFFF),
-	shellBottom = Color(0xF7EEF2F8),
-	border = Color(0x240B1E33),
-	borderStrong = Color(0x3D0B1E33),
-	text = Color(0xFF0E1620),
-	textSoft = Color(0xFF2E3B4B),
-	muted = Color(0xFF5B677A),
-	accent = Color(0xFF16283C),
-	accentText = Color(0xFFF4F8FD),
-	rail = Color(0xFFFFFFFF),
-	railBlur = Color(0xD9FFFFFF),
-	navActive = Color(0x2416283C),
-	navActiveText = Color(0xFF0E1620),
+	pageBase = Color(0xFFF6F2FC),
+	pageGradientTop = CinemaPastel.Blush,
+	pageGradientMid = CinemaPastel.Lavender,
+	shellTop = Color(0xEBFFFCFE),
+	shellBottom = Color(0xF2F4F0FC),
+	border = Color(0x337F6CD0),
+	borderStrong = Color(0x597F6CD0),
+	text = CinemaPastel.Ink,
+	textSoft = CinemaPastel.InkSoft,
+	muted = CinemaPastel.InkMuted,
+	accent = Color(0xFFB9AEEC),
+	accentText = Color(0xFF231C47),
+	rail = CinemaPastel.Paper,
+	railBlur = Color(0xE6FFFCFE),
+	navActive = Color(0x59C9BDF0),
+	navActiveText = Color(0xFF3B2F63),
 	button = Color(0xE6FFFFFF),
-	buttonFocused = Color(0xFFE2EAF4),
-	heroBackground = Color(0xFFDCE4EE),
-	cardPlaceholder = Color(0xFFDDE4EC),
-	input = Color(0xFFFFFFFF),
-	surface = Color(0xFFFFFFFF),
-	focus = Color(0xFF1B4F8A),
-	focusRing = Color(0x551B4F8A),
-	focusSeparator = Color(0xCCFFFFFF),
-	focusGlow = Color(0x801B4F8A),
-	tag = Color(0xD6FFFFFF),
-	tagBorder = Color(0x380B1E33),
-	star = Color(0xFFD99400),
+	buttonFocused = CinemaPastel.LavenderSoft,
+	heroBackground = Color(0xFFE6DFF5),
+	cardPlaceholder = Color(0xFFEDE7F7),
+	input = CinemaPastel.Paper,
+	surface = CinemaPastel.Paper,
+	focus = CinemaPastel.LavenderStrong,
+	focusRing = Color(0x667F6CD0),
+	focusSeparator = Color(0xE6FFFFFF),
+	focusGlow = Color(0x807F6CD0),
+	tag = Color(0xE6FFFFFF),
+	tagBorder = Color(0x407F6CD0),
+	star = Color(0xFFF2A33A),
 	onMedia = OnMedia,
 	onMediaSoft = OnMediaSoft,
 	onMediaMuted = OnMediaMuted,
-	pageBackground = Brush.verticalGradient(
-		0f to Color(0xFFFFFFFF),
-		0.55f to Color(0xFFEFF3F9),
-		1f to Color(0xFFE7ECF4),
-	),
-	shellBackground = Brush.verticalGradient(listOf(Color(0xF2FFFFFF), Color(0xF7EEF2F8))),
+	pageBackground = CinemaPastel.PageBrush,
+	shellBackground = Brush.verticalGradient(listOf(Color(0xEBFFFCFE), Color(0xF2F4F0FC))),
 	heroScrimHorizontal = HeroScrimHorizontalBrush,
 	heroScrimVertical = HeroScrimVerticalBrush,
 	wideCardScrim = WideCardScrimBrush,
 	shimmerColors = listOf(
-		Color(0xFFE3E9F1),
-		Color(0xFFF4F7FB),
-		Color(0xFFE3E9F1),
+		Color(0xFFECE6F7),
+		Color(0xFFFBF8FE),
+		Color(0xFFECE6F7),
 	),
 )
 

@@ -61,16 +61,21 @@ fun CinemaPosterCard(
 	progress: Float? = null,
 	/** Small counter bubble in the top end corner (e.g. episode count of a season). */
 	badge: String? = null,
+	/** Unique key used to give the focus back to this card when returning to the screen. */
+	focusKey: String? = null,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
 	var focused by remember { mutableStateOf(false) }
+	val click = rememberCinemaOpenAction(focusKey, onClick)
+	val longClick = onLongClick?.let { rememberCinemaOpenAction(focusKey, it) }
 
 	Column(
 		modifier = modifier
+			.then(cinemaRestoreFocus(focusKey))
 			.width(width)
 			.cinemaFocusZoom(focused)
 			.onFocusChanged { focused = it.isFocused }
-			.cinemaClickable(interactionSource, onClick, onLongClick),
+			.cinemaClickable(interactionSource, click, longClick),
 		verticalArrangement = Arrangement.spacedBy(6.dp),
 	) {
 		Box(
@@ -149,16 +154,21 @@ fun CinemaWideCard(
 	modifier: Modifier = Modifier,
 	onLongClick: (() -> Unit)? = null,
 	width: Dp = 340.dp,
+	/** Unique key used to give the focus back to this card when returning to the screen. */
+	focusKey: String? = null,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
 	var focused by remember { mutableStateOf(false) }
+	val click = rememberCinemaOpenAction(focusKey, onClick)
+	val longClick = onLongClick?.let { rememberCinemaOpenAction(focusKey, it) }
 
 	Column(
 		modifier = modifier
+			.then(cinemaRestoreFocus(focusKey))
 			.width(width)
 			.cinemaFocusZoom(focused)
 			.onFocusChanged { focused = it.isFocused }
-			.cinemaClickable(interactionSource, onClick, onLongClick),
+			.cinemaClickable(interactionSource, click, longClick),
 		verticalArrangement = Arrangement.spacedBy(8.dp),
 	) {
 		Box(
@@ -305,16 +315,20 @@ fun CinemaPersonCard(
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 	width: Dp = CinemaDimens.RowCardWidth,
+	/** Unique key used to give the focus back to this card when returning to the screen. */
+	focusKey: String? = null,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
 	var focused by remember { mutableStateOf(false) }
+	val click = rememberCinemaOpenAction(focusKey, onClick)
 
 	Column(
 		modifier = modifier
+			.then(cinemaRestoreFocus(focusKey))
 			.width(width)
 			.cinemaFocusZoom(focused)
 			.onFocusChanged { focused = it.isFocused }
-			.clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+			.clickable(interactionSource = interactionSource, indication = null, onClick = click),
 		horizontalAlignment = Alignment.CenterHorizontally,
 		verticalArrangement = Arrangement.spacedBy(8.dp),
 	) {
@@ -388,12 +402,17 @@ fun CinemaEpisodeRow(
 	onClick: () -> Unit,
 	modifier: Modifier = Modifier,
 	onLongClick: (() -> Unit)? = null,
+	/** Unique key used to give the focus back to this row when returning to the screen. */
+	focusKey: String? = null,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
 	var focused by remember { mutableStateOf(false) }
+	val click = rememberCinemaOpenAction(focusKey, onClick)
+	val longClick = onLongClick?.let { rememberCinemaOpenAction(focusKey, it) }
 
 	Row(
 		modifier = modifier
+			.then(cinemaRestoreFocus(focusKey))
 			.fillMaxWidth()
 			.clip(CinemaDimens.PanelShape)
 			.background(if (focused) CinemaColors.ButtonFocused else CinemaColors.Surface)
@@ -403,7 +422,7 @@ fun CinemaEpisodeRow(
 				shape = CinemaDimens.PanelShape,
 			)
 			.onFocusChanged { focused = it.isFocused }
-			.cinemaClickable(interactionSource, onClick, onLongClick)
+			.cinemaClickable(interactionSource, click, longClick)
 			.padding(16.dp),
 		horizontalArrangement = Arrangement.spacedBy(20.dp),
 		verticalAlignment = Alignment.CenterVertically,
