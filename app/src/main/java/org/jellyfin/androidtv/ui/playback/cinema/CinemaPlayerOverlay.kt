@@ -305,8 +305,6 @@ fun CinemaPlayerOverlay(
 			PlayerLogoBlock(
 				info = info,
 				state = state,
-				paused = snapshot.paused,
-				controlsActive = controlsActive,
 				reducedMotion = reducedMotion,
 				modifier = Modifier
 					.align(Alignment.TopStart)
@@ -443,8 +441,6 @@ private fun BoxScope.PlayerHeader(
 private fun PlayerLogoBlock(
 	info: CinemaPlayerInfo,
 	state: CinemaPlayerOverlayState,
-	paused: Boolean,
-	controlsActive: Boolean,
 	reducedMotion: Boolean,
 	modifier: Modifier = Modifier,
 ) {
@@ -478,18 +474,6 @@ private fun PlayerLogoBlock(
 		) {
 			// Year · runtime · rating already sit in the header; only the episode title stays.
 			info.metaSecondary?.let { PlayerMetaText(it, 18.sp, Color.White.copy(alpha = 0.75f)) }
-			if (paused && controlsActive) {
-				Text(
-					text = stringResource(R.string.cinema_player_paused).uppercase(),
-					color = Color.White.copy(alpha = 0.88f),
-					fontSize = 14.sp,
-					fontWeight = FontWeight.SemiBold,
-					letterSpacing = 0.18.em,
-					maxLines = 1,
-					modifier = Modifier.padding(top = 6.dp),
-					style = TEXT_SHADOW,
-				)
-			}
 		}
 	}
 }
@@ -637,7 +621,8 @@ private fun PlayerBottomBar(
 					modifier = Modifier.weight(1f),
 				)
 				Spacer(Modifier.width(22.dp))
-				PlayerTimeText(formatPlayerTime(duration, showHours))
+				// Remaining time instead of the total duration.
+				PlayerTimeText("-" + formatPlayerTime((duration - position).coerceAtLeast(0), showHours))
 			}
 			Spacer(Modifier.height(ROW_GAP))
 		}
@@ -651,6 +636,14 @@ private fun PlayerBottomBar(
 			)
 
 			Spacer(Modifier.weight(1f))
+
+			if (duration > 0) {
+				PlayerEndTime(
+					remainingMs = (duration - position).coerceAtLeast(0),
+					speed = snapshot.speed,
+				)
+				Spacer(Modifier.width(22.dp))
+			}
 
 			PlayerCircleButton(
 				icon = painterResource(R.drawable.ic_more),
@@ -673,6 +666,32 @@ private fun formatPlayerTime(ms: Long, showHours: Boolean): String {
 	val seconds = totalSeconds % 60
 	return if (showHours) "%02d:%02d:%02d".format(hours, minutes, seconds)
 	else "%02d:%02d".format(minutes, seconds)
+}
+
+/**
+ * Wall clock time at which playback ends ("Ende um 22:41"), honouring the playback speed.
+ * Ticks on its own so the time keeps moving while the video is paused.
+ */
+@Composable
+private fun PlayerEndTime(remainingMs: Long, speed: Float) {
+	val context = LocalContext.current
+	var now by remember { mutableStateOf(System.currentTimeMillis()) }
+	LaunchedEffect(Unit) {
+		while (true) {
+			delay(END_TIME_TICK_MS)
+			now = System.currentTimeMillis()
+		}
+	}
+	val timeFormat = remember(context) { android.text.format.DateFormat.getTimeFormat(context) }
+	val endAt = now + (remainingMs / speed.coerceAtLeast(0.1f)).toLong()
+	Text(
+		text = stringResource(R.string.cinema_player_ends_at, timeFormat.format(java.util.Date(endAt))),
+		color = Color.White.copy(alpha = 0.85f),
+		fontSize = 16.sp,
+		fontWeight = FontWeight.Medium,
+		maxLines = 1,
+		style = TEXT_SHADOW,
+	)
 }
 
 @Composable
@@ -699,14 +718,13 @@ private class TrickplayPreview(
 @Composable
 private fun rememberTrickplayPreview(host: CinemaPlayerHost, positionMs: Long, enabled: Boolean): TrickplayPreview? {
 	var preview by remember { mutableStateOf<TrickplayPreview?>(null) }
-	val frame = remember(enabled, positionMs / TRICKPLAY_BUCKET_MS) {
-		if (enabled) host.trickplayFrame(positionMs) else null
-	}
-	LaunchedEffect(frame) {
-		if (frame == null) {
-			if (!enabled) preview = null
+	val bucket = positionMs / TRICKPLAY_BUCKET_MS
+	LaunchedEffect(enabled, bucket) {
+		if (!enabled) {
+			preview = null
 			return@LaunchedEffect
 		}
+		val frame = runCatching { host.trickplayFrame(positionMs) }.getOrNull() ?: return@LaunchedEffect
 		val sheet = runCatching { host.loadTrickplayTile(frame.tileKey) }.getOrNull() ?: return@LaunchedEffect
 		preview = TrickplayPreview(sheet, frame)
 	}
@@ -1320,8 +1338,8 @@ private val EDGE = 40.dp
 private val HEADER_TOP = 28.dp
 private val BACK_SIZE = 52.dp
 private const val LOGO_TOP_FRACTION = 0.18f
-private val LOGO_MAX_WIDTH = 420.dp
-private val LOGO_MAX_HEIGHT = 120.dp
+private val LOGO_MAX_WIDTH = 294.dp
+private val LOGO_MAX_HEIGHT = 84.dp
 private val PLAY_SIZE = 58.dp
 private val MORE_SIZE = 56.dp
 private val BOTTOM_PADDING = 24.dp
@@ -1341,6 +1359,7 @@ private const val PENDING_SEEK_TIMEOUT_MS = 4_000L
 
 // Trickplay preview
 private const val TRICKPLAY_BUCKET_MS = 1_000L
+private const val END_TIME_TICK_MS = 10_000L
 private val TRICKPLAY_WIDTH = 176.dp
 private val THUMB_SHAPE = RoundedCornerShape(10.dp)
 

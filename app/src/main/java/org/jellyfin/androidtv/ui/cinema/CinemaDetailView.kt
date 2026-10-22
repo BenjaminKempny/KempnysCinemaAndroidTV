@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jellyfin.androidtv.R
+import org.jellyfin.androidtv.data.contentwarning.ContentWarningCategory
 import org.jellyfin.androidtv.ui.base.Text
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -85,7 +86,7 @@ fun CinemaDetailScreen(
 ) {
 	val item = state.item
 	val playFocusRequester = remember { FocusRequester() }
-	var contentWarningsExpanded by rememberSaveable(item?.id) { mutableStateOf(false) }
+	var contentWarningCategory by rememberSaveable(item?.id) { mutableStateOf<ContentWarningCategory?>(null) }
 	val focusMemory = LocalCinemaFocusMemory.current
 	val listState = rememberCinemaLazyListState("detail")
 
@@ -139,8 +140,8 @@ fun CinemaDetailScreen(
 						thumbUrl = thumbUrl,
 						personImageUrl = personImageUrl,
 						playFocusRequester = playFocusRequester,
-						contentWarningsExpanded = contentWarningsExpanded,
-						onToggleContentWarnings = { contentWarningsExpanded = !contentWarningsExpanded },
+						contentWarningCategory = contentWarningCategory,
+						onSelectContentWarningCategory = { contentWarningCategory = it },
 					)
 				}
 			}
@@ -232,8 +233,8 @@ private fun LazyListScope.detailContent(
 	thumbUrl: (BaseItemDto) -> String?,
 	personImageUrl: (BaseItemPerson) -> String?,
 	playFocusRequester: FocusRequester,
-	contentWarningsExpanded: Boolean,
-	onToggleContentWarnings: () -> Unit,
+	contentWarningCategory: ContentWarningCategory?,
+	onSelectContentWarningCategory: (ContentWarningCategory?) -> Unit,
 ) {
 	val isPerson = detailItem.type == BaseItemKind.PERSON
 	val hasOverview = !detailItem.overview.isNullOrBlank() || !detailItem.tags.isNullOrEmpty()
@@ -252,8 +253,8 @@ private fun LazyListScope.detailContent(
 	state.contentWarnings?.let { warnings ->
 		contentWarningsSection(
 			result = warnings,
-			expanded = contentWarningsExpanded,
-			onToggle = onToggleContentWarnings,
+			selectedCategory = contentWarningCategory,
+			onSelectCategory = onSelectContentWarningCategory,
 		)
 	}
 

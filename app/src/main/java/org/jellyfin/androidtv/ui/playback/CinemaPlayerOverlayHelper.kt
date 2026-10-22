@@ -9,13 +9,19 @@ import androidx.lifecycle.lifecycleScope
 import coil3.ImageLoader
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
+import coil3.request.ErrorResult
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
+import coil3.request.allowHardware
 import coil3.request.maxBitmapSize
 import coil3.size.Dimension
 import coil3.size.Size
 import coil3.toBitmap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.constant.getQualityProfiles
 import org.jellyfin.androidtv.data.repository.ItemMutationRepository
@@ -53,7 +59,6 @@ import java.util.UUID
 import kotlin.math.abs
 
 private const val LOGO_REQUEST_WIDTH = 1200
-private const val TICKS_PER_MINUTE = 600_000_000L
 
 /** Whether the cinema overlay replaces the leanback controls for [items] (not for live TV). */
 fun usesCinemaPlayerOverlay(items: List<BaseItemDto>?): Boolean =
@@ -157,55 +162,79 @@ private class CinemaPlayerHostImpl(
 		override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?) = size > TRICKPLAY_CACHE_SIZE
 	}
 
-	override fun trickplayFrame(positionMs: Long): CinemaTrickplayFrame? = runCatching {
+	override suspend fun trickplayFrame(positionMs: Long): CinemaTrickplayFrame? {
 		val controller = controller ?: return null
-		val item = controller.currentlyPlayingItem ?: return null
-		val mediaSource = controller.currentMediaSource ?: return null
-		val mediaSourceId = mediaSource.id?.toUUIDOrNull() ?: return null
+		val item = runCatching { controller.currentlyPlayingItem }.getOrNull() ?: return null
+		val mediaSource = runCatching { controller.currentMediaSource }.getOrNull()
+		val manifest = trickplayFor(item) ?: return null
 		// Smallest resolution is plenty for a preview and the fastest to load.
-		val info = trickplayFor(item)?.get(mediaSource.id)?.values?.minByOrNull { it.width } ?: return null
-		if (info.interval <= 0 || info.tileWidth <= 0 || info.tileHeight <= 0) return null
+		val (sourceKey, info) = selectTrickplayInfo(manifest, mediaSource?.id, item.id) ?: return null
+		if (info.interval <= 0 || info.tileWidth <= 0 || info.tileHeight <= 0 || info.width <= 0 || info.height <= 0) return null
 
-		val thumbnail = (positionMs.coerceAtLeast(0) / info.interval).toInt()
-			.coerceAtMost((info.thumbnailCount - 1).coerceAtLeast(0))
-		val perTile = info.tileWidth * info.tileHeight
-		val offset = thumbnail % perTile
-		val url = api.trickplayApi.getTrickplayTileImageUrl(
-			itemId = item.id,
-			width = info.width,
-			index = thumbnail / perTile,
-			mediaSourceId = mediaSourceId,
-		)
-		CinemaTrickplayFrame(
-			tileKey = url,
-			x = (offset % info.tileWidth) * info.width,
-			y = (offset / info.tileWidth) * info.height,
-			width = info.width,
-			height = info.height,
-		)
-	}.getOrNull()
+		return runCatching {
+			val thumbnail = (positionMs.coerceAtLeast(0) / info.interval).toInt()
+				.coerceAtMost((info.thumbnailCount - 1).coerceAtLeast(0))
+			val perTile = info.tileWidth * info.tileHeight
+			val offset = thumbnail % perTile
+			val url = api.trickplayApi.getTrickplayTileImageUrl(
+				itemId = item.id,
+				width = info.width,
+				index = thumbnail / perTile,
+				mediaSourceId = sourceKey.toUUIDOrNull(),
+			)
+			CinemaTrickplayFrame(
+				tileKey = url,
+				x = (offset % info.tileWidth) * info.width,
+				y = (offset / info.tileWidth) * info.height,
+				width = info.width,
+				height = info.height,
+			)
+		}.onFailure { Timber.w(it, "Trickplay: unable to build the tile url") }.getOrNull()
+	}
+
+	/**
+	 * Picks the manifest of the playing media source. The keys are media source ids which the
+	 * server may format with or without dashes; falls back to the item id or the only entry.
+	 */
+	private fun selectTrickplayInfo(
+		manifest: Map<String, Map<String, TrickplayInfoDto>>,
+		mediaSourceId: String?,
+		itemId: UUID,
+	): Pair<String, TrickplayInfoDto>? {
+		fun normalize(id: String) = id.replace("-", "").lowercase(Locale.ROOT)
+		val wanted = listOfNotNull(mediaSourceId, itemId.toString()).map(::normalize)
+		val entry = wanted.firstNotNullOfOrNull { id -> manifest.entries.firstOrNull { normalize(it.key) == id } }
+			?: manifest.entries.singleOrNull()
+			?: manifest.entries.firstOrNull()
+			?: return null
+		val info = entry.value.values.filter { it.width > 0 }.minByOrNull { it.width } ?: return null
+		return entry.key to info
+	}
 
 	/**
 	 * Trickplay manifest of [item]. Items opened from the light weight home rows come without
-	 * the `Trickplay` field, so it is fetched once per item in the background.
+	 * the `Trickplay` field, so the full item is fetched once per item.
 	 */
-	private fun trickplayFor(item: BaseItemDto): Map<String, Map<String, TrickplayInfoDto>>? {
+	private suspend fun trickplayFor(item: BaseItemDto): Map<String, Map<String, TrickplayInfoDto>>? {
 		item.trickplay?.takeIf { it.isNotEmpty() }?.let { return it }
-		if (!trickplayLookups.containsKey(item.id)) {
-			trickplayLookups[item.id] = null
-			fragment.viewLifecycleOwner.lifecycleScope.launch {
-				runCatching { api.userLibraryApi.getItem(itemId = item.id).content.trickplay }
-					.onSuccess { trickplay ->
-						trickplayLookups[item.id] = trickplay
-						if (trickplay.isNullOrEmpty()) Timber.i("Trickplay: no thumbnails on the server for \"%s\" (%s)", item.name, item.id)
-						else Timber.i("Trickplay: thumbnails available for \"%s\": %s", item.name, trickplay.values.flatMap { it.keys })
-					}
-					.onFailure { Timber.w(it, "Trickplay: unable to load the trickplay info of %s", item.id) }
+		if (trickplayLookups.containsKey(item.id)) return trickplayLookups[item.id]
+		return trickplayMutex.withLock {
+			if (trickplayLookups.containsKey(item.id)) return@withLock trickplayLookups[item.id]
+			val result = runCatching {
+				withContext(Dispatchers.IO) { api.userLibraryApi.getItem(itemId = item.id).content.trickplay }
 			}
+				.onSuccess { trickplay ->
+					if (trickplay.isNullOrEmpty()) Timber.i("Trickplay: no thumbnails on the server for \"%s\" (%s)", item.name, item.id)
+					else Timber.i("Trickplay: thumbnails available for \"%s\": %s", item.name, trickplay.mapValues { it.value.keys })
+				}
+				.onFailure { Timber.w(it, "Trickplay: unable to load the trickplay info of %s", item.id) }
+			// Only cache definitive answers so a network hiccup does not disable trickplay for good.
+			if (result.isSuccess) trickplayLookups[item.id] = result.getOrNull()
+			result.getOrNull()
 		}
-		return trickplayLookups[item.id]
 	}
 
+	private val trickplayMutex = Mutex()
 	private val trickplayLookups = mutableMapOf<UUID, Map<String, Map<String, TrickplayInfoDto>>?>()
 
 	override suspend fun loadTrickplayTile(tileKey: String): ImageBitmap? {
@@ -215,6 +244,7 @@ private class CinemaPlayerHostImpl(
 			.data(tileKey)
 			.size(Size.ORIGINAL)
 			.maxBitmapSize(Size(Dimension.Undefined, Dimension.Undefined))
+			.allowHardware(false)
 			.httpHeaders(
 				NetworkHeaders.Builder()
 					.set(
@@ -230,7 +260,11 @@ private class CinemaPlayerHostImpl(
 					.build()
 			)
 			.build()
-		val result = imageLoader.execute(request) as? SuccessResult ?: return null
+		val result = imageLoader.execute(request)
+		if (result !is SuccessResult) {
+			Timber.w((result as? ErrorResult)?.throwable, "Trickplay: unable to load tile %s", tileKey)
+			return null
+		}
 		val bitmap = runCatching { result.image.toBitmap().asImageBitmap() }.getOrNull() ?: return null
 		trickplayTiles[tileKey] = bitmap
 		return bitmap
@@ -595,7 +629,6 @@ internal fun buildCinemaPlayerInfo(
 	} else {
 		metaPrimary = listOfNotNull(
 			item.productionYear?.toString(),
-			item.runTimeTicks?.takeIf { it > 0 }?.let { formatRuntime(context, it) },
 			item.officialRating?.takeIf { it.isNotBlank() }?.let(::formatRating),
 		).joinToString(" · ").takeIf { it.isNotBlank() }
 		metaSecondary = null
@@ -627,13 +660,6 @@ internal fun buildCinemaPlayerInfo(
 	)
 }
 
-private fun formatRuntime(context: Context, ticks: Long): String {
-	val totalMinutes = (ticks / TICKS_PER_MINUTE).coerceAtLeast(1)
-	val hours = totalMinutes / 60
-	val minutes = totalMinutes % 60
-	return if (hours > 0) context.getString(R.string.cinema_player_hours_minutes, hours.toInt(), minutes.toInt())
-	else context.getString(R.string.cinema_player_minutes, minutes.toInt())
-}
 
 /** `DE-12` / `FSK-12` → `FSK 12`, everything else as delivered by the server. */
 private fun formatRating(rating: String): String {

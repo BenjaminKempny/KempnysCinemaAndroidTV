@@ -739,6 +739,11 @@
         <item quantity="one">Timestamp: %1$s</item>
         <item quantity="other">Timestamps: %1$s</item>
     </plurals>
+    <plurals name="content_warnings_topic_count">
+        <item quantity="one">%1$d topic</item>
+        <item quantity="other">%1$d topics</item>
+    </plurals>
+    <string name="content_warnings_hint">Select a category for details</string>
     <string name="cinema_collections_subtitle">Your collections, curated by you.</string>
     <string name="cinema_empty">Nothing here yet.</string>
     <string name="cinema_previous">Previous</string>

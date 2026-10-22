@@ -239,7 +239,7 @@ data class CinemaPlayerInfo(
 	val key: String,
 	/** Typographic title, only used when there is no logo. */
 	val title: String,
-	/** First metadata line below the logo (`2006 · 2 Std. 10 Min. · FSK 12` / `Staffel 2 · Folge 6`). */
+	/** First metadata line below the logo (`2006 · FSK 12` / `Staffel 2 · Folge 6`). */
 	val metaPrimary: String?,
 	/** Optional second metadata line (episode title). */
 	val metaSecondary: String?,
@@ -277,7 +277,7 @@ interface CinemaPlayerHost {
 	fun hasSubtitles(): Boolean
 
 	/** Trickplay thumbnail for [positionMs] or null when the server has none. */
-	fun trickplayFrame(positionMs: Long): CinemaTrickplayFrame? = null
+	suspend fun trickplayFrame(positionMs: Long): CinemaTrickplayFrame? = null
 
 	/** Loads the tile sheet of a [CinemaTrickplayFrame]. */
 	suspend fun loadTrickplayTile(tileKey: String): ImageBitmap? = null

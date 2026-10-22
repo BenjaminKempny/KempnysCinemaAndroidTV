@@ -7,14 +7,13 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +30,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jellyfin.androidtv.R
@@ -43,29 +43,69 @@ import org.jellyfin.androidtv.ui.base.Icon
 import org.jellyfin.androidtv.ui.base.Text
 
 /**
- * Collapsible DoesTheDogDie content warning row on the movie detail page. The header is a
- * single focus target that toggles the section; in the expanded state every category becomes
- * its own lazy item (and focus target) so D-Pad navigation scrolls through long lists.
+ * DoesTheDogDie content warnings on the movie detail page.
+ *
+ * Always shows a compact overview: one tile per category with its severity and the number of
+ * reported topics. Selecting a tile opens the details of that category below the overview
+ * (selecting it again closes them). Every topic of the opened category is its own lazy item
+ * and focus target, so D-Pad navigation scrolls through long lists.
  */
 internal fun LazyListScope.contentWarningsSection(
 	result: ContentWarningResult,
-	expanded: Boolean,
-	onToggle: () -> Unit,
+	selectedCategory: ContentWarningCategory?,
+	onSelectCategory: (ContentWarningCategory?) -> Unit,
 ) {
-	item(key = "content-warnings-header") {
-		ContentWarningHeader(result = result, expanded = expanded, onToggle = onToggle)
-	}
-
-	if (!expanded) return
-
 	val report = (result as? ContentWarningResult.Available)?.report
-	if (report == null) {
-		item(key = "content-warnings-message") { ContentWarningMessage(result) }
-		return
+
+	item(key = "content-warnings-overview") {
+		Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+			ContentWarningTitle(
+				hint = if (report != null && report.groups.isNotEmpty()) stringResource(R.string.content_warnings_hint) else null,
+			)
+
+			if (report == null || report.groups.isEmpty()) {
+				ContentWarningMessage(result)
+			} else {
+				Row(
+					modifier = Modifier.fillMaxWidth(),
+					horizontalArrangement = Arrangement.spacedBy(12.dp),
+				) {
+					report.groups.forEach { group ->
+						ContentWarningTile(
+							group = group,
+							selected = group.category == selectedCategory,
+							onClick = {
+								onSelectCategory(if (group.category == selectedCategory) null else group.category)
+							},
+							modifier = Modifier.weight(1f),
+						)
+					}
+				}
+			}
+		}
 	}
 
-	items(report.groups, key = { "content-warnings-${it.category}" }) { group ->
-		ContentWarningGroupPanel(group)
+	if (report == null) return
+	val group = report.groups.firstOrNull { it.category == selectedCategory } ?: return
+
+	item(key = "content-warnings-detail-${group.category}") {
+		ContentWarningDetailHeader(group)
+	}
+
+	if (group.topics.isEmpty()) {
+		item(key = "content-warnings-empty-${group.category}") {
+			ContentWarningTopicCard {
+				Text(
+					text = stringResource(R.string.content_warnings_category_empty),
+					color = CinemaColors.Muted,
+					fontSize = CinemaDimens.MetaSize,
+				)
+			}
+		}
+	} else {
+		itemsIndexed(group.topics, key = { index, _ -> "content-warnings-topic-${group.category}-$index" }) { _, topic ->
+			ContentWarningTopicCard { ContentWarningTopicRow(topic) }
+		}
 	}
 
 	item(key = "content-warnings-source") {
@@ -79,96 +119,157 @@ internal fun LazyListScope.contentWarningsSection(
 }
 
 @Composable
-private fun ContentWarningHeader(
-	result: ContentWarningResult,
-	expanded: Boolean,
-	onToggle: () -> Unit,
-) {
-	var focused by remember { mutableStateOf(false) }
-
-	Box(
-		modifier = Modifier
-			.fillMaxWidth()
-			.clip(CinemaDimens.PanelShape)
-			.background(CinemaColors.Surface.copy(alpha = if (focused) 0.85f else 0.55f))
-			.border(
-				width = if (focused) 2.dp else 1.dp,
-				color = if (focused) CinemaColors.Focus else CinemaColors.Border,
-				shape = CinemaDimens.PanelShape,
-			)
-			.onFocusChanged { focused = it.isFocused }
-			.clickable(onClick = onToggle),
+private fun ContentWarningTitle(hint: String?) {
+	Row(
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(12.dp),
 	) {
-		Row(
-			modifier = Modifier.padding(horizontal = 24.dp, vertical = 18.dp),
-			verticalAlignment = Alignment.CenterVertically,
-			horizontalArrangement = Arrangement.spacedBy(16.dp),
-		) {
-			Icon(
-				painter = painterResource(R.drawable.ic_info),
-				contentDescription = null,
-				tint = CinemaColors.Text,
-				modifier = Modifier.size(22.dp),
-			)
-
+		Icon(
+			painter = painterResource(R.drawable.ic_info),
+			contentDescription = null,
+			tint = CinemaColors.Text,
+			modifier = Modifier.size(22.dp),
+		)
+		Text(
+			text = stringResource(R.string.content_warnings_title),
+			color = CinemaColors.Text,
+			fontSize = CinemaDimens.CardTitleSize,
+			fontWeight = FontWeight.SemiBold,
+		)
+		if (hint != null) {
 			Text(
-				text = stringResource(R.string.content_warnings_title),
-				color = CinemaColors.Text,
-				fontSize = CinemaDimens.CardTitleSize,
-				fontWeight = FontWeight.SemiBold,
-			)
-
-			Box(Modifier.weight(1f)) { ContentWarningSummary(result) }
-
-			Icon(
-				painter = painterResource(R.drawable.ic_arrow_forward),
-				contentDescription = stringResource(
-					if (expanded) R.string.content_warnings_collapse else R.string.content_warnings_expand
-				),
-				tint = CinemaColors.Muted,
-				modifier = Modifier
-					.size(22.dp)
-					.rotate(if (expanded) 270f else 90f),
+				text = hint,
+				color = CinemaColors.Muted,
+				fontSize = CinemaDimens.MetaSize,
+				maxLines = 1,
 			)
 		}
 	}
 }
 
-/** Compact one-line summary in the collapsed header. */
-@OptIn(ExperimentalLayoutApi::class)
+/** Overview tile: severity strip, category, severity and the number of reported topics. */
 @Composable
-private fun ContentWarningSummary(result: ContentWarningResult) {
-	when (result) {
-		is ContentWarningResult.Available -> {
-			val flagged = result.report.groups.filter { it.severity != ContentWarningSeverity.NONE }
-			if (flagged.isEmpty()) {
-				SummaryText(stringResource(R.string.content_warnings_none_reported))
-			} else {
-				FlowRow(
-					horizontalArrangement = Arrangement.spacedBy(8.dp),
-					verticalArrangement = Arrangement.spacedBy(6.dp),
-				) {
-					flagged.forEach { group ->
-						SeverityChip(
-							text = stringResource(group.category.labelRes),
-							severity = group.severity,
-						)
+private fun ContentWarningTile(
+	group: ContentWarningGroup,
+	selected: Boolean,
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	var focused by remember { mutableStateOf(false) }
+	val severityColor = group.severity.color
+
+	Column(
+		modifier = modifier
+			.clip(CinemaDimens.CardShape)
+			.background(
+				CinemaColors.Surface.copy(
+					alpha = when {
+						focused -> 0.9f
+						selected -> 0.75f
+						else -> 0.5f
 					}
+				)
+			)
+			.border(
+				width = if (focused || selected) 2.dp else 1.dp,
+				color = when {
+					focused -> CinemaColors.Focus
+					selected -> severityColor
+					else -> CinemaColors.Border
+				},
+				shape = CinemaDimens.CardShape,
+			)
+			.onFocusChanged { focused = it.isFocused }
+			.clickable(onClick = onClick),
+	) {
+		Box(
+			Modifier
+				.fillMaxWidth()
+				.height(5.dp)
+				.background(severityColor),
+		)
+
+		Column(
+			modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+			verticalArrangement = Arrangement.spacedBy(6.dp),
+		) {
+			Text(
+				text = stringResource(group.category.labelRes),
+				color = CinemaColors.Text,
+				fontSize = 17.sp,
+				fontWeight = FontWeight.SemiBold,
+				maxLines = 1,
+				overflow = TextOverflow.Ellipsis,
+			)
+
+			Row(
+				verticalAlignment = Alignment.CenterVertically,
+				horizontalArrangement = Arrangement.spacedBy(8.dp),
+			) {
+				Box(
+					Modifier
+						.size(10.dp)
+						.clip(CircleShape)
+						.background(severityColor),
+				)
+				Text(
+					text = stringResource(group.severity.labelRes),
+					color = CinemaColors.TextSoft,
+					fontSize = CinemaDimens.MetaSize,
+					fontWeight = FontWeight.Medium,
+					maxLines = 1,
+				)
+			}
+
+			Row(
+				verticalAlignment = Alignment.CenterVertically,
+				horizontalArrangement = Arrangement.spacedBy(6.dp),
+			) {
+				Text(
+					text = if (group.topics.isEmpty()) stringResource(R.string.content_warnings_none_reported)
+					else pluralStringResource(R.plurals.content_warnings_topic_count, group.topics.size, group.topics.size),
+					color = CinemaColors.Muted,
+					fontSize = CinemaDimens.MetaSize,
+					maxLines = 1,
+					overflow = TextOverflow.Ellipsis,
+					modifier = Modifier.weight(1f),
+				)
+				if (group.topics.isNotEmpty()) {
+					Icon(
+						painter = painterResource(R.drawable.ic_arrow_forward),
+						contentDescription = stringResource(
+							if (selected) R.string.content_warnings_collapse else R.string.content_warnings_expand
+						),
+						tint = CinemaColors.Muted,
+						modifier = Modifier
+							.size(16.dp)
+							.rotate(if (selected) 270f else 90f),
+					)
 				}
 			}
 		}
-
-		else -> SummaryText(stringResource(result.messageRes))
 	}
 }
 
 @Composable
-private fun SummaryText(text: String) = Text(
-	text = text,
-	color = CinemaColors.Muted,
-	fontSize = CinemaDimens.MetaSize,
-	maxLines = 1,
-)
+private fun ContentWarningDetailHeader(group: ContentWarningGroup) {
+	Row(
+		modifier = Modifier.padding(start = 24.dp),
+		verticalAlignment = Alignment.CenterVertically,
+		horizontalArrangement = Arrangement.spacedBy(14.dp),
+	) {
+		Text(
+			text = stringResource(group.category.labelRes),
+			color = CinemaColors.Text,
+			fontSize = CinemaDimens.CardTitleSize,
+			fontWeight = FontWeight.SemiBold,
+		)
+		SeverityChip(
+			text = stringResource(group.severity.labelRes),
+			severity = group.severity,
+		)
+	}
+}
 
 @Composable
 private fun ContentWarningMessage(result: ContentWarningResult) {
@@ -182,8 +283,9 @@ private fun ContentWarningMessage(result: ContentWarningResult) {
 	}
 }
 
+/** Focusable card around a single topic of the opened category. */
 @Composable
-private fun ContentWarningGroupPanel(group: ContentWarningGroup) {
+private fun ContentWarningTopicCard(content: @Composable () -> Unit) {
 	var focused by remember { mutableStateOf(false) }
 
 	Box(
@@ -191,7 +293,7 @@ private fun ContentWarningGroupPanel(group: ContentWarningGroup) {
 			.fillMaxWidth()
 			.padding(start = 24.dp)
 			.clip(CinemaDimens.CardShape)
-			.background(CinemaColors.Surface.copy(alpha = 0.45f))
+			.background(CinemaColors.Surface.copy(alpha = if (focused) 0.7f else 0.45f))
 			.border(
 				width = if (focused) 2.dp else 1.dp,
 				color = if (focused) CinemaColors.Focus else CinemaColors.Border,
@@ -200,37 +302,7 @@ private fun ContentWarningGroupPanel(group: ContentWarningGroup) {
 			.onFocusChanged { focused = it.isFocused }
 			.focusable(),
 	) {
-		Column(
-			modifier = Modifier.padding(horizontal = 22.dp, vertical = 16.dp),
-			verticalArrangement = Arrangement.spacedBy(10.dp),
-		) {
-			Row(
-				verticalAlignment = Alignment.CenterVertically,
-				horizontalArrangement = Arrangement.spacedBy(14.dp),
-			) {
-				Text(
-					text = stringResource(group.category.labelRes),
-					color = CinemaColors.Text,
-					fontSize = CinemaDimens.CardTitleSize,
-					fontWeight = FontWeight.SemiBold,
-					modifier = Modifier.weight(1f),
-				)
-				SeverityChip(
-					text = stringResource(group.severity.labelRes),
-					severity = group.severity,
-				)
-			}
-
-			if (group.topics.isEmpty()) {
-				Text(
-					text = stringResource(R.string.content_warnings_category_empty),
-					color = CinemaColors.Muted,
-					fontSize = CinemaDimens.MetaSize,
-				)
-			}
-
-			group.topics.forEach { topic -> ContentWarningTopicRow(topic) }
-		}
+		Box(Modifier.padding(horizontal = 22.dp, vertical = 16.dp)) { content() }
 	}
 }
 
@@ -239,10 +311,10 @@ private fun ContentWarningTopicRow(topic: ContentWarningTopic) {
 	Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
 		Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
 			Text(
-				text = "• ${topic.name}",
+				text = topic.name,
 				color = CinemaColors.Text,
 				fontSize = CinemaDimens.MetaSize,
-				fontWeight = FontWeight.Medium,
+				fontWeight = FontWeight.SemiBold,
 				modifier = Modifier.weight(1f),
 			)
 			Text(
@@ -343,6 +415,4 @@ private val ContentWarningResult.messageRes: Int
 		ContentWarningResult.Error -> R.string.content_warnings_error
 		is ContentWarningResult.Available -> R.string.content_warnings_none_reported
 	}
-
-
 
