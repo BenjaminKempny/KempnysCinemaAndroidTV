@@ -135,4 +135,17 @@ class MainActivity : FragmentActivity() {
 
 	override fun onKeyLongPress(keyCode: Int, event: KeyEvent?): Boolean =
 		onKeyEvent(keyCode, event) || super.onKeyUp(keyCode, event)
+
+	/**
+	 * Compose falls back to the view focus search when it cannot move the focus itself. If the
+	 * ComposeView itself is the focused view, [android.view.FocusFinder] throws instead of
+	 * returning null. Treat that as "no focus change" instead of crashing the app.
+	 */
+	override fun dispatchKeyEvent(event: KeyEvent): Boolean = try {
+		super.dispatchKeyEvent(event)
+	} catch (error: IllegalArgumentException) {
+		if (error.message?.contains("descendant of this view") != true) throw error
+		Timber.w(error, "Ignored invalid focus search for key %d", event.keyCode)
+		true
+	}
 }

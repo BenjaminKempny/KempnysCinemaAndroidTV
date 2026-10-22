@@ -63,6 +63,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -133,6 +134,8 @@ fun CinemaPlayerOverlay(
 	val timelineFocus = remember { FocusRequester() }
 	val moreFocus = remember { FocusRequester() }
 	val consumedKeys = remember { mutableSetOf<Int>() }
+	// True while the root itself (not one of the controls) holds the focus.
+	val rootFocused = remember { booleanArrayOf(false) }
 
 	var snapshot by remember { mutableStateOf(host.snapshot()) }
 	LaunchedEffect(host) {
@@ -223,7 +226,8 @@ fun CinemaPlayerOverlay(
 		modifier = modifier
 			.fillMaxSize()
 			.focusRequester(rootFocus)
-			.onPreviewKeyEvent { event -> handleRootKey(event, state, host, consumedKeys, scrub) }
+			.onPreviewKeyEvent { event -> handleRootKey(event, state, host, consumedKeys, rootFocused[0], scrub) }
+			.onFocusChanged { rootFocused[0] = it.isFocused }
 			.focusable(),
 	) {
 		val info = state.info
@@ -1182,6 +1186,7 @@ private fun handleRootKey(
 	state: CinemaPlayerOverlayState,
 	host: CinemaPlayerHost,
 	consumedKeys: MutableSet<Int>,
+	rootFocused: Boolean,
 	scrub: (direction: Int, repeat: Int) -> Unit,
 ): Boolean {
 	val code = event.nativeKeyEvent.keyCode
@@ -1201,8 +1206,17 @@ private fun handleRootKey(
 		return true
 	}
 
-	// Open controls handle their own keys.
-	if (state.controlsVisible) return false
+	// Open controls handle their own keys. Right after opening, the focus only moves to a
+	// control one frame later; until then the root keeps handling the D-Pad. Otherwise
+	// Compose tries to move the focus itself, finds nothing and falls back to the view
+	// focus search, which crashes ("parameter must be a descendant of this view").
+	if (state.controlsVisible && !rootFocused) return false
+	// A panel is about to take the focus: swallow the D-Pad until it has it.
+	if (state.panel != null) {
+		val dpad = code in DPAD_KEYS
+		if (dpad) consumedKeys += code
+		return dpad
+	}
 
 	val handled = when (code) {
 		AndroidKeyEvent.KEYCODE_DPAD_CENTER,
@@ -1236,6 +1250,16 @@ private fun handleRootKey(
 	if (handled) consumedKeys += code
 	return handled
 }
+
+private val DPAD_KEYS = setOf(
+	AndroidKeyEvent.KEYCODE_DPAD_UP,
+	AndroidKeyEvent.KEYCODE_DPAD_DOWN,
+	AndroidKeyEvent.KEYCODE_DPAD_LEFT,
+	AndroidKeyEvent.KEYCODE_DPAD_RIGHT,
+	AndroidKeyEvent.KEYCODE_DPAD_CENTER,
+	AndroidKeyEvent.KEYCODE_ENTER,
+	AndroidKeyEvent.KEYCODE_NUMPAD_ENTER,
+)
 
 // endregion
 
