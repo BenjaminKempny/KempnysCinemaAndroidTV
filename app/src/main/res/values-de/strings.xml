@@ -702,9 +702,9 @@
     <string name="content_warnings_expand">Inhaltswarnungen anzeigen</string>
     <string name="content_warnings_collapse">Inhaltswarnungen ausblenden</string>
     <string name="content_warnings_loading">Inhaltswarnungen werden geladen…</string>
-    <string name="content_warnings_not_found">Für diesen Film liegen bei DoesTheDogDie keine Inhaltswarnungen vor.</string>
+    <string name="content_warnings_not_found">Für diesen Film liegen bei DoesTheDogDie und IMDb keine Inhaltswarnungen vor.</string>
     <string name="content_warnings_missing_ids">Keine Inhaltswarnungen verfügbar: Für diesen Film ist keine IMDb- oder TMDB-ID hinterlegt.</string>
-    <string name="content_warnings_not_configured">Keine Inhaltswarnungen verfügbar: Es ist kein gültiger DoesTheDogDie-API-Schlüssel konfiguriert.</string>
+    <string name="content_warnings_not_configured">Keine Inhaltswarnungen verfügbar: Es ist kein gültiger DoesTheDogDie-API-Schlüssel konfiguriert und der IMDb Parents Guide ist deaktiviert.</string>
     <string name="content_warnings_error">Inhaltswarnungen konnten nicht geladen werden. Bitte später erneut versuchen.</string>
     <string name="content_warnings_none_reported">Nichts gemeldet</string>
     <string name="content_warnings_category_empty">Keine Meldungen in dieser Kategorie.</string>
@@ -720,7 +720,12 @@
     <string name="content_warnings_severity_severe">Hoch</string>
     <string name="content_warnings_votes">%1$d Ja · %2$d Nein</string>
     <string name="content_warnings_spoiler">[Spoiler] %1$s</string>
-    <string name="content_warnings_source">Quelle: Community-Abstimmungen auf DoesTheDogDie.com (%1$s)</string>
+    <string name="content_warnings_source">Quellen: %1$s</string>
+    <string name="content_warnings_source_dtdd">Community-Abstimmungen auf DoesTheDogDie.com (%1$s)</string>
+    <string name="content_warnings_source_imdb">IMDb Parents Guide (%1$s)</string>
+    <string name="content_warnings_severity_votes">%1$s: %2$d</string>
+    <string name="pref_content_warnings_imdb">IMDb Parents Guide</string>
+    <string name="pref_content_warnings_imdb_description">Inhaltswarnungen um den IMDb Parents Guide ergänzen (inoffiziell, direkt von IMDb geladen)</string>
     <plurals name="content_warnings_timestamps">
         <item quantity="one">Zeitstempel: %1$s</item>
         <item quantity="other">Zeitstempel: %1$s</item>

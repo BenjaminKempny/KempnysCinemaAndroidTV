@@ -56,6 +56,11 @@ class UserPreferences(context: Context) : SharedPreferenceStore(
 		var cinemaPerformanceModeEnabled = booleanPreference("cinema_performance_mode", false)
 
 		/**
+		 * Supplement the content warnings with the IMDb Parents Guide (scraped, unofficial).
+		 */
+		var contentWarningsImdbEnabled = booleanPreference("content_warnings_imdb", true)
+
+		/**
 		 * Behavior of app background while browsing
 		 */
 		var backdropBehavior = enumPreference("backdrop_behavior", BackdropBehavior.BACKDROP_WITH_BLUR)

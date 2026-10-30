@@ -38,12 +38,13 @@ import org.jellyfin.androidtv.data.contentwarning.ContentWarningCategory
 import org.jellyfin.androidtv.data.contentwarning.ContentWarningGroup
 import org.jellyfin.androidtv.data.contentwarning.ContentWarningResult
 import org.jellyfin.androidtv.data.contentwarning.ContentWarningSeverity
+import org.jellyfin.androidtv.data.contentwarning.ContentWarningSource
 import org.jellyfin.androidtv.data.contentwarning.ContentWarningTopic
 import org.jellyfin.androidtv.ui.base.Icon
 import org.jellyfin.androidtv.ui.base.Text
 
 /**
- * DoesTheDogDie content warnings on the movie detail page.
+ * Content warnings (DoesTheDogDie and IMDb Parents Guide) on the movie detail page.
  *
  * Always shows a compact overview: one tile per category with its severity and the number of
  * reported topics. Selecting a tile opens the details of that category below the overview
@@ -109,8 +110,17 @@ internal fun LazyListScope.contentWarningsSection(
 	}
 
 	item(key = "content-warnings-source") {
+		val sources = report.sources.map { link ->
+			stringResource(
+				when (link.source) {
+					ContentWarningSource.DOES_THE_DOG_DIE -> R.string.content_warnings_source_dtdd
+					ContentWarningSource.IMDB -> R.string.content_warnings_source_imdb
+				},
+				link.url,
+			)
+		}
 		Text(
-			text = stringResource(R.string.content_warnings_source, report.url),
+			text = stringResource(R.string.content_warnings_source, sources.joinToString(" · ")),
 			color = CinemaColors.Muted,
 			fontSize = CinemaDimens.MetaSize,
 			modifier = Modifier.padding(horizontal = 24.dp),
@@ -318,7 +328,14 @@ private fun ContentWarningTopicRow(topic: ContentWarningTopic) {
 				modifier = Modifier.weight(1f),
 			)
 			Text(
-				text = stringResource(R.string.content_warnings_votes, topic.yesVotes, topic.noVotes),
+				text = if (topic.source == ContentWarningSource.IMDB) {
+					ContentWarningSeverity.entries
+						.filter { it in topic.severityVotes }
+						.map { stringResource(R.string.content_warnings_severity_votes, stringResource(it.labelRes), topic.severityVotes.getValue(it)) }
+						.joinToString(" · ")
+				} else {
+					stringResource(R.string.content_warnings_votes, topic.yesVotes, topic.noVotes)
+				},
 				color = CinemaColors.Muted,
 				fontSize = CinemaDimens.MetaSize,
 			)

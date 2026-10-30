@@ -716,9 +716,9 @@
     <string name="content_warnings_expand">Show content warnings</string>
     <string name="content_warnings_collapse">Hide content warnings</string>
     <string name="content_warnings_loading">Loading content warnings…</string>
-    <string name="content_warnings_not_found">No content warnings available for this movie on DoesTheDogDie.</string>
+    <string name="content_warnings_not_found">No content warnings available for this movie on DoesTheDogDie or IMDb.</string>
     <string name="content_warnings_missing_ids">Content warnings unavailable: this movie has no IMDb or TMDB id.</string>
-    <string name="content_warnings_not_configured">Content warnings unavailable: no valid DoesTheDogDie API key configured.</string>
+    <string name="content_warnings_not_configured">Content warnings unavailable: no valid DoesTheDogDie API key configured and the IMDb Parents Guide is disabled.</string>
     <string name="content_warnings_error">Content warnings could not be loaded. Please try again later.</string>
     <string name="content_warnings_none_reported">Nothing reported</string>
     <string name="content_warnings_category_empty">No reports in this category.</string>
@@ -734,7 +734,12 @@
     <string name="content_warnings_severity_severe">Severe</string>
     <string name="content_warnings_votes">%1$d yes · %2$d no</string>
     <string name="content_warnings_spoiler">[Spoiler] %1$s</string>
-    <string name="content_warnings_source">Source: DoesTheDogDie.com community votes (%1$s)</string>
+    <string name="content_warnings_source">Sources: %1$s</string>
+    <string name="content_warnings_source_dtdd">DoesTheDogDie.com community votes (%1$s)</string>
+    <string name="content_warnings_source_imdb">IMDb Parents Guide (%1$s)</string>
+    <string name="content_warnings_severity_votes">%1$s: %2$d</string>
+    <string name="pref_content_warnings_imdb">IMDb Parents Guide</string>
+    <string name="pref_content_warnings_imdb_description">Supplement content warnings with the IMDb Parents Guide (unofficial, loaded directly from IMDb)</string>
     <plurals name="content_warnings_timestamps">
         <item quantity="one">Timestamp: %1$s</item>
         <item quantity="other">Timestamps: %1$s</item>

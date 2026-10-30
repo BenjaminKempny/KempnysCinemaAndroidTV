@@ -74,6 +74,18 @@ fun SettingsCustomizationScreen() {
 		}
 
 		item {
+			var imdbParentsGuide by rememberPreference(userPreferences, UserPreferences.contentWarningsImdbEnabled)
+
+			ListButton(
+				headingContent = { Text(stringResource(R.string.pref_content_warnings_imdb)) },
+				trailingContent = { Checkbox(checked = imdbParentsGuide) },
+				captionContent = { Text(stringResource(R.string.pref_content_warnings_imdb_description)) },
+				onClick = { imdbParentsGuide = !imdbParentsGuide },
+				modifier = Modifier.focusKey("content_warnings_imdb")
+			)
+		}
+
+		item {
 			var clockBehavior by rememberPreference(userPreferences, UserPreferences.clockBehavior)
 
 			ListButton(

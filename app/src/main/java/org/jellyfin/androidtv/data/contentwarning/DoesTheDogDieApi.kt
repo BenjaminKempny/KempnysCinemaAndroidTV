@@ -133,7 +133,11 @@ class DoesTheDogDieApi(private val apiKey: String) {
 			)
 		}
 
-		return ContentWarningReport(mediaId = mediaId, title = title, groups = groups)
+		return ContentWarningReport(
+			title = title,
+			groups = groups,
+			sources = listOf(ContentWarningSourceLink(ContentWarningSource.DOES_THE_DOG_DIE, "$BASE_URL/media/$mediaId")),
+		)
 	}
 
 	private data class RawTopic(val category: ContentWarningCategory, val topic: ContentWarningTopic)
