@@ -130,6 +130,8 @@ fun CinemaButton(
 	icon: Painter? = null,
 	primary: Boolean = false,
 	enabled: Boolean = true,
+	/** Icon after the label, e.g. the chevron of a dropdown. */
+	trailingIcon: Painter? = null,
 ) {
 	val interactionSource = remember { MutableInteractionSource() }
 	var focused by remember { mutableStateOf(false) }
@@ -192,6 +194,15 @@ fun CinemaButton(
 			maxLines = 1,
 			overflow = TextOverflow.Ellipsis,
 		)
+
+		if (trailingIcon != null) {
+			Icon(
+				painter = trailingIcon,
+				contentDescription = null,
+				tint = contentColor,
+				modifier = Modifier.size(21.dp),
+			)
+		}
 	}
 }
 

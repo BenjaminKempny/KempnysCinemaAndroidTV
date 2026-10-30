@@ -2,7 +2,26 @@ package org.jellyfin.androidtv.ui.cinema
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,6 +70,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.time.temporal.ChronoUnit
+import java.util.UUID
 
 data class CinemaDetailActions(
 	val onBack: () -> Unit,
@@ -63,6 +83,8 @@ data class CinemaDetailActions(
 	/** Opens the detail page of a cast or crew member. */
 	val onOpenPerson: (BaseItemPerson) -> Unit,
 	val onSelectSort: (CinemaSort) -> Unit,
+	/** Switches the season whose episodes are listed on the series page. */
+	val onSelectSeason: (UUID) -> Unit,
 )
 
 /**
@@ -70,9 +92,9 @@ data class CinemaDetailActions(
  *
  * Layout per item type (reference screenshots):
  * - Movie / episode: capsule -> info ribbon -> overview -> cast & crew
- * - Series: capsule -> info ribbon -> overview -> next up -> seasons -> cast & crew
- * - Season: capsule -> overview -> episode list
+ * - Series: capsule -> info ribbon -> next up -> episodes (season dropdown) -> cast & crew
  *
+ * Seasons have no page of their own; they open the series with that season selected.
  * The capsule only carries the play button; there are no recommendation rows.
  */
 @Composable
@@ -86,6 +108,7 @@ fun CinemaDetailScreen(
 ) {
 	val item = state.item
 	val playFocusRequester = remember { FocusRequester() }
+	val seasonSelectorFocus = remember { SeasonSelectorFocus() }
 	var contentWarningCategory by rememberSaveable(item?.id) { mutableStateOf<ContentWarningCategory?>(null) }
 	val focusMemory = LocalCinemaFocusMemory.current
 	val listState = rememberCinemaLazyListState("detail")
@@ -140,6 +163,7 @@ fun CinemaDetailScreen(
 						thumbUrl = thumbUrl,
 						personImageUrl = personImageUrl,
 						playFocusRequester = playFocusRequester,
+						seasonSelectorFocus = seasonSelectorFocus,
 						contentWarningCategory = contentWarningCategory,
 						onSelectContentWarningCategory = { contentWarningCategory = it },
 					)
@@ -233,11 +257,13 @@ private fun LazyListScope.detailContent(
 	thumbUrl: (BaseItemDto) -> String?,
 	personImageUrl: (BaseItemPerson) -> String?,
 	playFocusRequester: FocusRequester,
+	seasonSelectorFocus: SeasonSelectorFocus,
 	contentWarningCategory: ContentWarningCategory?,
 	onSelectContentWarningCategory: (ContentWarningCategory?) -> Unit,
 ) {
 	val isPerson = detailItem.type == BaseItemKind.PERSON
-	val hasOverview = !detailItem.overview.isNullOrBlank() || !detailItem.tags.isNullOrEmpty()
+	// Series don't show a description at all.
+	val hasOverview = detailItem.type != BaseItemKind.SERIES && !detailItem.overview.isNullOrBlank()
 
 	item(key = "hero") {
 		CinemaDetailHero(
@@ -245,6 +271,10 @@ private fun LazyListScope.detailContent(
 			state = state,
 			onPlay = actions.onPlay,
 			playFocusRequester = playFocusRequester,
+			// Without a next up card the season dropdown is the next stop below the play button.
+			downFocus = seasonSelectorFocus.takeIf {
+				detailItem.type == BaseItemKind.SERIES && state.nextUp == null
+			},
 		)
 	}
 
@@ -269,8 +299,7 @@ private fun LazyListScope.detailContent(
 	}
 
 	when (detailItem.type) {
-		BaseItemKind.SERIES -> seriesSections(state, actions, posterUrl, thumbUrl)
-		BaseItemKind.SEASON -> episodeList(state, actions, thumbUrl)
+		BaseItemKind.SERIES -> seriesSections(state, actions, thumbUrl, seasonSelectorFocus)
 		BaseItemKind.PERSON -> filmography(
 			state = state,
 			actions = actions,
@@ -357,15 +386,15 @@ private fun LazyListScope.filmography(
 private fun personFocusReady(state: CinemaDetailState): Boolean {
 	val item = state.item ?: return false
 	if (!state.isPerson) return false
-	val hasOverview = !item.overview.isNullOrBlank() || !item.tags.isNullOrEmpty()
+	val hasOverview = !item.overview.isNullOrBlank()
 	return hasOverview || state.children.isNotEmpty()
 }
 
 private fun LazyListScope.seriesSections(
 	state: CinemaDetailState,
 	actions: CinemaDetailActions,
-	posterUrl: (BaseItemDto) -> String?,
 	thumbUrl: (BaseItemDto) -> String?,
+	seasonSelectorFocus: SeasonSelectorFocus,
 ) {
 	state.nextUp?.let { nextUp ->
 		item(key = "next-up") {
@@ -380,52 +409,41 @@ private fun LazyListScope.seriesSections(
 						onLongClick = { actions.onOpenItem(nextUp) },
 						width = NEXT_UP_WIDTH,
 						focusKey = "next-up",
+						// Moving down goes to the season dropdown first, then into the episodes.
+						modifier = seasonSelectorFocus.downModifier,
 					)
 				}
 			}
 		}
 	}
 
-	if (state.children.isNotEmpty()) {
-		item(key = "seasons") {
-			CinemaDetailSection(title = stringResource(R.string.lbl_seasons)) {
-				LazyRow(
-					state = rememberCinemaLazyListState("seasons"),
-					modifier = Modifier
-						.fillMaxWidth()
-						.focusRestorer(),
-					contentPadding = PaddingValues(horizontal = SECTION_PADDING),
-					horizontalArrangement = Arrangement.spacedBy(CinemaDimens.RowGap),
-				) {
-					items(state.children, key = { it.id }) { season ->
-						CinemaPosterCard(
-							title = season.name.orEmpty(),
-							subtitle = null,
-							imageUrl = posterUrl(season),
-							onClick = { actions.onOpenItem(season) },
-							width = CinemaDimens.RowCardWidth,
-							focusKey = "season-${season.id}",
-							badge = (season.childCount ?: season.userData?.unplayedItemCount)
-								?.takeIf { it > 0 }
-								?.toString(),
-						)
-					}
-				}
-			}
-		}
-	}
-}
-
-private fun LazyListScope.episodeList(
-	state: CinemaDetailState,
-	actions: CinemaDetailActions,
-	thumbUrl: (BaseItemDto) -> String?,
-) {
 	if (state.children.isEmpty()) return
 
-	item(key = "episodes-title") { CinemaSectionTitle(stringResource(R.string.lbl_episodes)) }
+	item(key = "episodes-title") {
+		DisposableEffect(seasonSelectorFocus) {
+			seasonSelectorFocus.attached = true
+			onDispose { seasonSelectorFocus.attached = false }
+		}
 
-	items(state.children, key = { "episode-${it.id}" }) { episode ->
+		Row(
+			modifier = Modifier.fillMaxWidth(),
+			verticalAlignment = Alignment.CenterVertically,
+		) {
+			CinemaSectionTitle(
+				text = stringResource(R.string.lbl_episodes),
+				modifier = Modifier.weight(1f),
+			)
+
+			CinemaSeasonSelector(
+				seasons = state.children,
+				selectedId = state.selectedSeasonId,
+				onSelect = actions.onSelectSeason,
+				buttonModifier = Modifier.focusRequester(seasonSelectorFocus.requester),
+			)
+		}
+	}
+
+	items(state.episodes, key = { "episode-${it.id}" }) { episode ->
 		CinemaEpisodeRow(
 			title = listOfNotNull(episode.indexNumber?.let { "$it." }, episode.name).joinToString(" "),
 			meta = listOfNotNull(episode.runTimeTicks?.takeIf { it > 0L }?.let(::formatCinemaRuntime)),
@@ -447,9 +465,9 @@ private fun CinemaDetailHero(
 	state: CinemaDetailState,
 	onPlay: () -> Unit,
 	playFocusRequester: FocusRequester,
+	downFocus: SeasonSelectorFocus? = null,
 ) {
 	val (title, subtitle) = when (item.type) {
-		BaseItemKind.SEASON -> (item.seriesName ?: item.name.orEmpty()) to item.name
 		BaseItemKind.EPISODE -> item.name.orEmpty() to
 			listOfNotNull(item.seriesName, item.cinemaEpisodeCode).joinToString(" · ").ifBlank { null }
 
@@ -535,7 +553,9 @@ private fun CinemaDetailHero(
 						icon = painterResource(if (resumable) R.drawable.ic_resume else R.drawable.ic_play),
 						primary = true,
 						onClick = onPlay,
-						modifier = Modifier.focusRequester(playFocusRequester),
+						modifier = Modifier
+							.then(downFocus?.downModifier ?: Modifier)
+							.focusRequester(playFocusRequester),
 					)
 				}
 			}
@@ -656,8 +676,11 @@ private fun CinemaDetailRibbon(item: BaseItemDto) {
 }
 
 /**
- * Tagline, overview and tags. The panel is a focus target of its own so moving down from
+ * Tagline and overview. The panel is a focus target of its own so moving down from
  * the play button scrolls the description into view instead of jumping past it.
+ *
+ * Long descriptions are cut after [OVERVIEW_MAX_LINES] lines; Enter opens the full text in a
+ * scrollable overlay that Back closes again.
  */
 @Composable
 private fun CinemaDetailOverview(
@@ -665,6 +688,9 @@ private fun CinemaDetailOverview(
 	focusRequester: FocusRequester? = null,
 ) {
 	var focused by remember { mutableStateOf(false) }
+	var truncated by remember(item.id) { mutableStateOf(false) }
+	var expanded by rememberSaveable(item.id) { mutableStateOf(false) }
+	val interactionSource = remember { MutableInteractionSource() }
 
 	Box(
 		modifier = Modifier
@@ -678,7 +704,11 @@ private fun CinemaDetailOverview(
 			)
 			.then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
 			.onFocusChanged { focused = it.isFocused }
-			.focusable(),
+			.clickable(
+				interactionSource = interactionSource,
+				indication = null,
+				onClick = { if (truncated) expanded = true },
+			),
 	) {
 		Column(
 			modifier = Modifier.padding(horizontal = 24.dp, vertical = 22.dp),
@@ -699,25 +729,118 @@ private fun CinemaDetailOverview(
 					color = CinemaColors.TextSoft,
 					fontSize = CinemaDimens.BodySize,
 					lineHeight = OVERVIEW_LINE_HEIGHT,
+					maxLines = OVERVIEW_MAX_LINES,
+					overflow = TextOverflow.Ellipsis,
+					onTextLayout = { truncated = it.hasVisualOverflow },
 				)
 			}
+		}
+	}
 
-			item.tags?.takeIf { it.isNotEmpty() }?.let { tags ->
-				Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+	if (expanded) {
+		CinemaOverviewDialog(
+			item = item,
+			onDismiss = { expanded = false },
+		)
+	}
+}
+
+/** Full screen, D-Pad scrollable view of the complete description. Back closes it. */
+@Composable
+private fun CinemaOverviewDialog(
+	item: BaseItemDto,
+	onDismiss: () -> Unit,
+) {
+	val scrollState = rememberScrollState()
+	val scope = rememberCoroutineScope()
+	val focusRequester = remember { FocusRequester() }
+	val scrollStep = with(LocalDensity.current) { OVERVIEW_SCROLL_STEP.toPx() }
+
+	Dialog(
+		onDismissRequest = onDismiss,
+		properties = DialogProperties(
+			dismissOnBackPress = true,
+			dismissOnClickOutside = true,
+			usePlatformDefaultWidth = false,
+			decorFitsSystemWindows = false,
+		),
+	) {
+		Box(
+			modifier = Modifier
+				.fillMaxSize()
+				.background(Color.Black.copy(alpha = 0.75f)),
+			contentAlignment = Alignment.Center,
+		) {
+			Box(
+				modifier = Modifier
+					.fillMaxWidth(0.7f)
+					.fillMaxHeight(0.85f)
+					.clip(CinemaDimens.PanelShape)
+					.background(CinemaColors.Surface)
+					.border(2.dp, CinemaColors.Focus, CinemaDimens.PanelShape)
+					.focusRequester(focusRequester)
+					.onKeyEvent { event ->
+						if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+						val delta = when (event.key) {
+							Key.DirectionDown -> scrollStep
+							Key.DirectionUp -> -scrollStep
+							else -> return@onKeyEvent false
+						}
+						scope.launch { scrollState.animateScrollBy(delta) }
+						true
+					}
+					.focusable(),
+			) {
+				Column(
+					modifier = Modifier
+						.fillMaxSize()
+						.verticalScroll(scrollState)
+						.padding(horizontal = 40.dp, vertical = 32.dp),
+					verticalArrangement = Arrangement.spacedBy(18.dp),
+				) {
 					Text(
-						text = stringResource(R.string.cinema_tags),
-						color = CinemaColors.Muted,
-						fontSize = CinemaDimens.MetaSize,
-					)
-					Text(
-						text = tags.joinToString(", "),
+						text = item.name.orEmpty(),
 						color = CinemaColors.Text,
-						fontSize = CinemaDimens.MetaSize,
-						fontWeight = FontWeight.SemiBold,
+						fontSize = CinemaDimens.SectionTitleSize,
+						fontWeight = FontWeight.Bold,
+					)
+
+					item.taglines?.firstOrNull()?.takeIf { it.isNotBlank() }?.let { tagline ->
+						Text(
+							text = tagline,
+							color = CinemaColors.Text,
+							fontSize = CinemaDimens.BodySize,
+							fontWeight = FontWeight.SemiBold,
+						)
+					}
+
+					Text(
+						text = item.overview.orEmpty(),
+						color = CinemaColors.TextSoft,
+						fontSize = CinemaDimens.BodySize,
+						lineHeight = OVERVIEW_LINE_HEIGHT,
 					)
 				}
 			}
 		}
+	}
+
+	LaunchedEffect(focusRequester) { runCatching { focusRequester.requestFocus() } }
+}
+
+/**
+ * Lets the next up card / play button jump straight down to the season dropdown, which sits
+ * at the end of the episodes title row and would otherwise be skipped by the D-Pad search.
+ */
+@Stable
+private class SeasonSelectorFocus {
+	val requester = FocusRequester()
+
+	/** Whether the dropdown is currently composed; an unattached requester must not be used. */
+	var attached by mutableStateOf(false)
+
+	val downModifier: Modifier = Modifier.focusProperties {
+		if (attached) down = requester
 	}
 }
 
@@ -772,6 +895,8 @@ private val DETAIL_HERO_HEIGHT = 320.dp
 private val DETAIL_TITLE_SIZE = 44.sp
 private val DETAIL_TITLE_LINE_HEIGHT = 50.sp
 private val OVERVIEW_LINE_HEIGHT = 27.sp
+private const val OVERVIEW_MAX_LINES = 5
+private val OVERVIEW_SCROLL_STEP = 120.dp
 private val NAV_BUTTON_SIZE = 44.dp
 private val COLLECTION_POSTER_WIDTH = 96.dp
 private val RIBBON_LABEL_WIDTH = 110.dp

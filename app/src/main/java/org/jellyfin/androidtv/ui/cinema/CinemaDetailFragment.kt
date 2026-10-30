@@ -60,6 +60,7 @@ class CinemaDetailFragment : Fragment() {
 							navigationRepository.navigate(Destinations.itemDetails(person.id))
 						},
 						onSelectSort = viewModel::setSort,
+						onSelectSeason = viewModel::selectSeason,
 					),
 					posterUrl = viewModel::posterUrl,
 					thumbUrl = viewModel::thumbUrl,

@@ -39,6 +39,10 @@ data class CinemaDetailState(
 	val children: List<BaseItemDto> = emptyList(),
 	/** The episode to continue with (series only). */
 	val nextUp: BaseItemDto? = null,
+	/** Season currently shown in the series episode list. */
+	val selectedSeasonId: UUID? = null,
+	/** Episodes of [selectedSeasonId] (series only). */
+	val episodes: List<BaseItemDto> = emptyList(),
 	/** Collections default to release date ascending (oldest first). */
 	val sort: CinemaSort = CinemaSort.Year,
 	/** DoesTheDogDie content warnings — movies only, `null` for every other item type. */
@@ -51,14 +55,14 @@ data class CinemaDetailState(
 	val isPerson get() = item?.type == BaseItemKind.PERSON
 
 	/**
-	 * The item the play button starts: the next up episode of a series, the first
-	 * unwatched episode of a season, the item itself otherwise.
+	 * The item the play button starts: the next up episode of a series (falling back to the
+	 * first unwatched episode of the selected season), the item itself otherwise.
 	 */
 	val playTarget: BaseItemDto?
 		get() = when (item?.type) {
-			BaseItemKind.SERIES -> nextUp ?: item
-			BaseItemKind.SEASON -> children.firstOrNull { it.userData?.played != true }
-				?: children.firstOrNull()
+			BaseItemKind.SERIES -> nextUp
+				?: episodes.firstOrNull { it.userData?.played != true }
+				?: episodes.firstOrNull()
 				?: item
 
 			else -> item
@@ -76,6 +80,7 @@ class CinemaDetailViewModel(
 	private var itemId: UUID? = null
 	private var collectionMediaType: CinemaMediaType? = null
 	private var childrenJob: Job? = null
+	private var episodesJob: Job? = null
 
 	fun load(id: UUID, mediaType: CinemaMediaType? = null) {
 		itemId = id
@@ -84,7 +89,16 @@ class CinemaDetailViewModel(
 
 		viewModelScope.launch(Dispatchers.IO) {
 			try {
-				val item by api.userLibraryApi.getItem(itemId = id)
+				val loaded by api.userLibraryApi.getItem(itemId = id)
+				// Seasons have no page of their own: show the series with that season selected.
+				val seasonSeriesId = loaded.seriesId.takeIf { loaded.type == BaseItemKind.SEASON }
+				val preselectedSeason = if (seasonSeriesId != null) loaded.id else null
+				val item = if (seasonSeriesId != null) {
+					api.userLibraryApi.getItem(itemId = seasonSeriesId).content
+				} else {
+					loaded
+				}
+				itemId = item.id
 
 				_state.update {
 					it.copy(
@@ -97,7 +111,11 @@ class CinemaDetailViewModel(
 				}
 
 				loadChildren(item)
-				if (item.type == BaseItemKind.SERIES) loadNextUp(item.id)
+				if (item.type == BaseItemKind.SERIES) {
+					// Next up decides the default season, so it has to be known first.
+					loadNextUp(item.id)
+					selectDefaultSeason(item.id, preselectedSeason)
+				}
 				if (item.type == BaseItemKind.MOVIE) loadContentWarnings(item)
 			} catch (error: ApiClientException) {
 				Timber.w(error, "Failed to load cinema detail item")
@@ -129,17 +147,6 @@ class CinemaDetailViewModel(
 				BaseItemKind.SERIES -> {
 					val result by api.tvShowsApi.getSeasons(
 						seriesId = item.id,
-						fields = ItemRepository.browseFields,
-						enableUserData = true,
-					)
-					result.items
-				}
-
-				BaseItemKind.SEASON -> {
-					val seriesId = item.seriesId ?: return
-					val result by api.tvShowsApi.getEpisodes(
-						seriesId = seriesId,
-						seasonId = item.id,
 						fields = ItemRepository.browseFields,
 						enableUserData = true,
 					)
@@ -203,6 +210,55 @@ class CinemaDetailViewModel(
 			}
 		}.onFailure {
 			Timber.w(it, "Failed to load cinema detail children")
+		}
+	}
+
+	fun selectSeason(seasonId: UUID) {
+		val current = _state.value
+		if (current.selectedSeasonId == seasonId) return
+		val seriesId = current.item?.takeIf { it.type == BaseItemKind.SERIES }?.id ?: return
+		_state.update { it.copy(selectedSeasonId = seasonId, episodes = emptyList()) }
+
+		episodesJob?.cancel()
+		episodesJob = viewModelScope.launch(Dispatchers.IO) { loadEpisodes(seriesId, seasonId) }
+	}
+
+	/**
+	 * Picks the season shown below the series: an explicitly requested one, the one already
+	 * selected (refresh), the season of the next up episode, otherwise season 1.
+	 */
+	private suspend fun selectDefaultSeason(seriesId: UUID, preselected: UUID?) {
+		val current = _state.value
+		val seasons = current.children
+		if (seasons.isEmpty()) {
+			_state.update { it.copy(selectedSeasonId = null, episodes = emptyList()) }
+			return
+		}
+
+		fun UUID?.valid() = this?.takeIf { id -> seasons.any { it.id == id } }
+		val seasonId = preselected.valid()
+			?: current.selectedSeasonId.valid()
+			?: current.nextUp?.seasonId.valid()
+			?: seasons.firstOrNull { it.indexNumber == 1 }?.id
+			?: seasons.first().id
+
+		_state.update { it.copy(selectedSeasonId = seasonId) }
+		loadEpisodes(seriesId, seasonId)
+	}
+
+	private suspend fun loadEpisodes(seriesId: UUID, seasonId: UUID) {
+		runCatching {
+			val result by api.tvShowsApi.getEpisodes(
+				seriesId = seriesId,
+				seasonId = seasonId,
+				fields = ItemRepository.browseFields,
+				enableUserData = true,
+			)
+			result.items
+		}.onSuccess { episodes ->
+			_state.update { if (it.selectedSeasonId == seasonId) it.copy(episodes = episodes) else it }
+		}.onFailure {
+			Timber.w(it, "Failed to load episodes")
 		}
 	}
 
