@@ -105,6 +105,7 @@ class CinemaHomeFragment : Fragment() {
 						// the detail screen where the full action row lives (spec §2.7).
 						onItemMenu = { navigationRepository.navigate(Destinations.itemDetails(it.id, state.mediaType)) },
 						onRailSelect = { selectedRail = it; onRailSelect(it) },
+						onOpenRecommendation = { navigationRepository.navigate(Destinations.movieRecommendation) },
 					),
 					posterUrl = viewModel::posterUrl,
 					thumbUrl = viewModel::thumbUrl,

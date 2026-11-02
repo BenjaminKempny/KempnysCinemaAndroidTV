@@ -130,5 +130,13 @@
             android:windowSoftInputMode="adjustNothing" />
 
         <activity android:name=".ui.playback.ExternalPlayerActivity" />
+
+        <!-- ScreenDiceNSpice rating prompt after a movie finished -->
+        <activity
+            android:name=".ui.sdns.SdnsRatingActivity"
+            android:exported="false"
+            android:configChanges="density|screenSize|smallestScreenSize|screenLayout|orientation|keyboard|keyboardHidden|navigation|uiMode"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.Jellyfin.Translucent" />
     </application>
 </manifest>

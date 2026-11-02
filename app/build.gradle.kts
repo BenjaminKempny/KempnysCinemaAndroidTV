@@ -31,6 +31,25 @@ android {
 			?: localProperties.getProperty("dtdd.api.key")
 			?: ""
 		buildConfigField("String", "DTDD_API_KEY", "\"${dtddApiKey.trim().replace("\"", "")}\"")
+
+		// ScreenDiceNSpice (Supabase). Read from `.env` in the project root or environment variables.
+		val dotEnv = rootProject.file(".env").takeIf { it.exists() }?.readLines().orEmpty()
+			.map { it.trim() }
+			.filter { it.isNotEmpty() && !it.startsWith("#") && "=" in it }
+			.associate { line ->
+				line.removePrefix("export ").substringBefore("=").trim() to
+					line.substringAfter("=").trim().trim('"', '\'')
+			}
+		// Accepts the plain names as well as the Next.js names used by the ScreenDiceNSpice web app.
+		fun envValue(vararg names: String) = names
+			.firstNotNullOfOrNull { name -> (dotEnv[name] ?: System.getenv(name))?.takeIf { it.isNotBlank() } }
+			.orEmpty()
+			.trim()
+			.replace("\\", "")
+			.replace("\"", "")
+		buildConfigField("String", "SUPABASE_URL", "\"${envValue("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL")}\"")
+		buildConfigField("String", "SUPABASE_KEY", "\"${envValue("SUPABASE_KEY", "SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY")}\"")
+		buildConfigField("String", "SDNS_PROFILE_ID", "\"${envValue("PROFILE_ID", "SDNS_PROFILE_ID")}\"")
 	}
 
 	buildFeatures {

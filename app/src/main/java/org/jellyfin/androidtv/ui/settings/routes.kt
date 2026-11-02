@@ -56,6 +56,7 @@ import org.jellyfin.androidtv.ui.settings.screen.playback.mediasegment.SettingsP
 import org.jellyfin.androidtv.ui.settings.screen.playback.mediasegment.SettingsPlaybackMediaSegmentsScreen
 import org.jellyfin.androidtv.ui.settings.screen.playback.nextup.SettingsPlaybackNextUpBehaviorScreen
 import org.jellyfin.androidtv.ui.settings.screen.playback.nextup.SettingsPlaybackNextUpScreen
+import org.jellyfin.androidtv.ui.settings.screen.playback.SettingsPlaybackSdnsScreen
 import org.jellyfin.androidtv.ui.settings.screen.screensaver.SettingsScreensaverAgeRatingScreen
 import org.jellyfin.androidtv.ui.settings.screen.screensaver.SettingsScreensaverScreen
 import org.jellyfin.androidtv.ui.settings.screen.screensaver.SettingsScreensaverTimeoutScreen
@@ -98,6 +99,7 @@ object Routes {
 	const val PLAYBACK_PHOTO_PLAYER = "/playback/photo-player"
 	const val PLAYBACK_NEXT_UP = "/playback/next-up"
 	const val PLAYBACK_NEXT_UP_BEHAVIOR = "/playback/next-up/behavior"
+	const val PLAYBACK_SDNS = "/playback/screendicenspice"
 	const val PLAYBACK_INACTIVITY_PROMPT = "/playback/inactivity-prompt"
 	const val PLAYBACK_PREROLLS = "/playback/prerolls"
 	const val PLAYBACK_MEDIA_SEGMENTS = "/playback/media-segments"
@@ -238,6 +240,9 @@ val routes = mapOf<String, RouteComposable>(
 	},
 	Routes.PLAYBACK_NEXT_UP_BEHAVIOR to {
 		SettingsPlaybackNextUpBehaviorScreen()
+	},
+	Routes.PLAYBACK_SDNS to {
+		SettingsPlaybackSdnsScreen()
 	},
 	Routes.PLAYBACK_INACTIVITY_PROMPT to {
 		SettingsPlaybackInactivityPromptScreen()

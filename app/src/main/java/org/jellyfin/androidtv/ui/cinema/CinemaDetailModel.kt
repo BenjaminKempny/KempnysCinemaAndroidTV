@@ -47,6 +47,8 @@ data class CinemaDetailState(
 	val sort: CinemaSort = CinemaSort.Year,
 	/** DoesTheDogDie content warnings — movies only, `null` for every other item type. */
 	val contentWarnings: ContentWarningResult? = null,
+	/** First local trailer of a movie (stored next to the file on the server), `null` otherwise. */
+	val trailer: BaseItemDto? = null,
 ) {
 	/** Collections render as a plain library grid instead of the media detail capsule. */
 	val isCollection get() = item?.type == BaseItemKind.BOX_SET
@@ -116,7 +118,10 @@ class CinemaDetailViewModel(
 					loadNextUp(item.id)
 					selectDefaultSeason(item.id, preselectedSeason)
 				}
-				if (item.type == BaseItemKind.MOVIE) loadContentWarnings(item)
+				if (item.type == BaseItemKind.MOVIE) {
+					loadTrailer(item)
+					loadContentWarnings(item)
+				}
 			} catch (error: ApiClientException) {
 				Timber.w(error, "Failed to load cinema detail item")
 				_state.update { it.copy(loading = false) }
@@ -259,6 +264,23 @@ class CinemaDetailViewModel(
 			_state.update { if (it.selectedSeasonId == seasonId) it.copy(episodes = episodes) else it }
 		}.onFailure {
 			Timber.w(it, "Failed to load episodes")
+		}
+	}
+
+	/** Local trailers are downloaded next to the movie file and picked up by the server. */
+	private suspend fun loadTrailer(item: BaseItemDto) {
+		if ((item.localTrailerCount ?: 0) <= 0) {
+			_state.update { if (it.item?.id == item.id) it.copy(trailer = null) else it }
+			return
+		}
+
+		runCatching {
+			val trailers by api.userLibraryApi.getLocalTrailers(itemId = item.id)
+			trailers.firstOrNull()
+		}.onSuccess { trailer ->
+			_state.update { if (it.item?.id == item.id) it.copy(trailer = trailer) else it }
+		}.onFailure {
+			Timber.w(it, "Failed to load trailer")
 		}
 	}
 

@@ -82,6 +82,8 @@ data class CinemaHomeActions(
 	val onPlayHeroItem: (CinemaHeroItem) -> Unit,
 	val onItemMenu: (BaseItemDto) -> Unit,
 	val onRailSelect: (CinemaRailItem) -> Unit,
+	/** Opens the "what should I watch" movie quiz. */
+	val onOpenRecommendation: () -> Unit = {},
 )
 
 /**
@@ -372,6 +374,15 @@ private fun LazyListScope.allView(
 			}
 		}
 
+		if (state.mediaType == CinemaMediaType.Movies) {
+			item(key = "recommendation-entry", contentType = "recommendationEntry") {
+				CinemaRecommendationEntry(
+					onClick = actions.onOpenRecommendation,
+					modifier = Modifier.railOnLeft(railFocusRequester, true),
+				)
+			}
+		}
+
 		cinemaGrid(
 			items = state.catalog,
 			posterUrl = posterUrl,
@@ -443,6 +454,48 @@ private fun LazyListScope.genresView(
 						)
 					}
 				}
+			}
+		}
+	}
+}
+
+/** Centered teaser below "All movies" that starts the movie quiz. */
+@Composable
+private fun CinemaRecommendationEntry(
+	onClick: () -> Unit,
+	modifier: Modifier = Modifier,
+) {
+	Box(
+		modifier = Modifier.fillMaxWidth().cinemaFocusSection(),
+		contentAlignment = Alignment.Center,
+	) {
+		CinemaPanel {
+			Row(
+				modifier = Modifier.padding(horizontal = 28.dp, vertical = 18.dp),
+				verticalAlignment = Alignment.CenterVertically,
+				horizontalArrangement = Arrangement.spacedBy(20.dp),
+			) {
+				Text(text = "🎲", fontSize = CinemaDimens.SectionTitleSize)
+				Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+					Text(
+						text = stringResource(R.string.reco_entry_title),
+						color = CinemaColors.Text,
+						fontSize = CinemaDimens.CardTitleSize,
+						fontWeight = FontWeight.Bold,
+					)
+					Text(
+						text = stringResource(R.string.reco_entry_subtitle),
+						color = CinemaColors.Muted,
+						fontSize = CinemaDimens.MetaSize,
+					)
+				}
+				CinemaButton(
+					text = stringResource(R.string.reco_entry_button),
+					icon = painterResource(R.drawable.ic_shuffle),
+					primary = true,
+					onClick = onClick,
+					modifier = modifier,
+				)
 			}
 		}
 	}

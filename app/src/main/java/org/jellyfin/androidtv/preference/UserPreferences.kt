@@ -60,6 +60,22 @@ class UserPreferences(context: Context) : SharedPreferenceStore(
 		 */
 		var contentWarningsImdbEnabled = booleanPreference("content_warnings_imdb", true)
 
+		/* ScreenDiceNSpice */
+		/**
+		 * Submit movie ratings to ScreenDiceNSpice and ask for a rating after a movie finished.
+		 */
+		var sdnsSubmitRatings = booleanPreference("sdns_submit_ratings", false)
+
+		/**
+		 * ScreenDiceNSpice profile id, empty to use PROFILE_ID from the .env file.
+		 */
+		var sdnsProfileId = stringPreference("sdns_profile_id", "")
+
+		/**
+		 * Display name of the selected ScreenDiceNSpice profile.
+		 */
+		var sdnsProfileName = stringPreference("sdns_profile_name", "")
+
 		/**
 		 * Behavior of app background while browsing
 		 */

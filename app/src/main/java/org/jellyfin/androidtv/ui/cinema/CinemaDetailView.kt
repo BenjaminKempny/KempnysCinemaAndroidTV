@@ -62,6 +62,8 @@ import androidx.compose.ui.unit.sp
 import org.jellyfin.androidtv.R
 import org.jellyfin.androidtv.data.contentwarning.ContentWarningCategory
 import org.jellyfin.androidtv.ui.base.Text
+import org.jellyfin.androidtv.ui.sdns.SdnsRatingDialog
+import org.jellyfin.androidtv.ui.sdns.toSdnsQuery
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
 import org.jellyfin.sdk.model.api.BaseItemPerson
@@ -77,6 +79,8 @@ data class CinemaDetailActions(
 	val onHome: () -> Unit,
 	/** Plays [CinemaDetailState.playTarget]. */
 	val onPlay: () -> Unit,
+	/** Plays [CinemaDetailState.trailer] (movies only). */
+	val onPlayTrailer: () -> Unit = {},
 	/** Plays a specific episode (next up card, episode list). */
 	val onPlayItem: (BaseItemDto) -> Unit,
 	val onOpenItem: (BaseItemDto) -> Unit,
@@ -270,6 +274,7 @@ private fun LazyListScope.detailContent(
 			item = detailItem,
 			state = state,
 			onPlay = actions.onPlay,
+			onPlayTrailer = actions.onPlayTrailer,
 			playFocusRequester = playFocusRequester,
 			// Without a next up card the season dropdown is the next stop below the play button.
 			downFocus = seasonSelectorFocus.takeIf {
@@ -466,6 +471,7 @@ private fun CinemaDetailHero(
 	onPlay: () -> Unit,
 	playFocusRequester: FocusRequester,
 	downFocus: SeasonSelectorFocus? = null,
+	onPlayTrailer: () -> Unit = {},
 ) {
 	val (title, subtitle) = when (item.type) {
 		BaseItemKind.EPISODE -> item.name.orEmpty() to
@@ -548,15 +554,42 @@ private fun CinemaDetailHero(
 
 					val target = state.playTarget
 					val resumable = (target?.userData?.playbackPositionTicks ?: 0L) > 0L
-					CinemaButton(
-						text = stringResource(if (resumable) R.string.cinema_resume else R.string.lbl_play),
-						icon = painterResource(if (resumable) R.drawable.ic_resume else R.drawable.ic_play),
-						primary = true,
-						onClick = onPlay,
-						modifier = Modifier
-							.then(downFocus?.downModifier ?: Modifier)
-							.focusRequester(playFocusRequester),
-					)
+					Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+						CinemaButton(
+							text = stringResource(if (resumable) R.string.cinema_resume else R.string.lbl_play),
+							icon = painterResource(if (resumable) R.drawable.ic_resume else R.drawable.ic_play),
+							primary = true,
+							onClick = onPlay,
+							modifier = Modifier
+								.then(downFocus?.downModifier ?: Modifier)
+								.focusRequester(playFocusRequester),
+						)
+
+						// Only movies with a downloaded local trailer get the button.
+						if (item.type == BaseItemKind.MOVIE && state.trailer != null) {
+							CinemaButton(
+								text = stringResource(R.string.cinema_trailer),
+								icon = painterResource(R.drawable.ic_trailer),
+								onClick = onPlayTrailer,
+							)
+						}
+
+						// Rate in ScreenDiceNSpice, always available for movies.
+						if (item.type == BaseItemKind.MOVIE) {
+							var showRating by remember(item.id) { mutableStateOf(false) }
+							CinemaButton(
+								text = stringResource(R.string.sdns_rate_button),
+								icon = painterResource(R.drawable.ic_star),
+								onClick = { showRating = true },
+							)
+							if (showRating) {
+								SdnsRatingDialog(
+									query = item.toSdnsQuery(),
+									onDismiss = { showRating = false },
+								)
+							}
+						}
+					}
 				}
 			}
 		}

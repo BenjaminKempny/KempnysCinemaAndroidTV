@@ -18,6 +18,8 @@ import org.jellyfin.androidtv.data.compat.StreamInfo;
 import org.jellyfin.androidtv.data.compat.VideoOptions;
 import org.jellyfin.androidtv.data.model.DataRefreshService;
 import org.jellyfin.androidtv.preference.UserPreferences;
+import org.jellyfin.androidtv.data.sdns.SdnsRepository;
+import org.jellyfin.androidtv.ui.sdns.SdnsRatingActivity;
 import org.jellyfin.androidtv.preference.UserSettingPreferences;
 import org.jellyfin.androidtv.preference.constant.NextUpBehavior;
 import org.jellyfin.androidtv.preference.constant.RefreshRateSwitchingBehavior;
@@ -62,6 +64,7 @@ public class PlaybackController implements PlaybackControllerNotifiable {
 
     private Lazy<PlaybackManager> playbackManager = inject(PlaybackManager.class);
     private Lazy<UserPreferences> userPreferences = inject(UserPreferences.class);
+    private final Lazy<SdnsRepository> sdnsRepository = inject(SdnsRepository.class);
     private Lazy<VideoQueueManager> videoQueueManager = inject(VideoQueueManager.class);
     private Lazy<ApiClient> api = inject(ApiClient.class);
     private Lazy<DataRefreshService> dataRefreshService = inject(DataRefreshService.class);
@@ -1190,6 +1193,16 @@ public class PlaybackController implements PlaybackControllerNotifiable {
 
         BaseItemDto nextItem = getNextItem();
         BaseItemDto curItem = getCurrentlyPlayingItem();
+
+        // Ask for a ScreenDiceNSpice rating once a movie finished (only when enabled)
+        if (mFragment != null && mFragment.getContext() != null) {
+            try {
+                SdnsRatingActivity.promptIfEnabled(mFragment.getContext(), userPreferences.getValue(), sdnsRepository.getValue(), curItem);
+            } catch (Exception e) {
+                Timber.w(e, "Unable to show ScreenDiceNSpice rating prompt");
+            }
+        }
+
         if (nextItem == null || curItem == null) {
             endPlayback(true);
             return;

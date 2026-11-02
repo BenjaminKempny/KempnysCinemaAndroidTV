@@ -84,6 +84,17 @@ fun SettingsPlaybackScreen() {
 		}
 
 		item {
+			val submitRatings by rememberPreference(userPreferences, UserPreferences.sdnsSubmitRatings)
+			ListButton(
+				leadingContent = { Icon(painterResource(R.drawable.ic_star), contentDescription = null) },
+				headingContent = { Text(stringResource(R.string.sdns_pref_submit_ratings)) },
+				captionContent = { Text(stringResource(if (submitRatings) R.string.sdns_pref_state_on else R.string.sdns_pref_state_off)) },
+				onClick = { router.push(Routes.PLAYBACK_SDNS) },
+				modifier = Modifier.focusKey(Routes.PLAYBACK_SDNS)
+			)
+		}
+
+		item {
 			var stillWatchingBehavior by rememberPreference(userPreferences, UserPreferences.stillWatchingBehavior)
 			ListButton(
 				leadingContent = { Icon(painterResource(R.drawable.ic_zzz), contentDescription = null) },

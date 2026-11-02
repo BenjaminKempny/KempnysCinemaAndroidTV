@@ -23,6 +23,7 @@ import org.jellyfin.androidtv.data.repository.UserViewsRepository
 import org.jellyfin.sdk.api.client.ApiClient
 import org.jellyfin.sdk.api.client.exception.ApiClientException
 import org.jellyfin.sdk.api.client.extensions.itemsApi
+import org.jellyfin.sdk.api.client.extensions.tvShowsApi
 import org.jellyfin.sdk.api.client.extensions.userLibraryApi
 import org.jellyfin.sdk.model.api.BaseItemDto
 import org.jellyfin.sdk.model.api.BaseItemKind
@@ -297,18 +298,52 @@ class CinemaHomeViewModel(
 		return result.items.map { item -> item.toHeroItem() }
 	}
 
-	private suspend fun loadContinueWatching(libraryId: UUID?, mediaType: CinemaMediaType): List<BaseItemDto> {
-		val result by itemsApi.getResumeItems(
-			parentId = libraryId,
-			includeItemTypes = setOf(if (mediaType == CinemaMediaType.Movies) BaseItemKind.MOVIE else BaseItemKind.EPISODE),
-			limit = RESUME_LIMIT,
-			fields = ItemRepository.browseFields,
-			imageTypeLimit = 1,
-			enableTotalRecordCount = false,
-			mediaTypes = setOf(MediaType.VIDEO),
-			excludeItemTypes = setOf(BaseItemKind.AUDIO_BOOK),
-		)
-		return result.items
+	private suspend fun loadContinueWatching(libraryId: UUID?, mediaType: CinemaMediaType): List<BaseItemDto> = coroutineScope {
+		val resumeDef = async {
+			val result by itemsApi.getResumeItems(
+				parentId = libraryId,
+				includeItemTypes = setOf(if (mediaType == CinemaMediaType.Movies) BaseItemKind.MOVIE else BaseItemKind.EPISODE),
+				limit = RESUME_LIMIT,
+				fields = ItemRepository.browseFields,
+				imageTypeLimit = 1,
+				enableTotalRecordCount = false,
+				mediaTypes = setOf(MediaType.VIDEO),
+				excludeItemTypes = setOf(BaseItemKind.AUDIO_BOOK),
+			)
+			result.items
+		}
+
+		// Movies have no "next episode".
+		if (mediaType == CinemaMediaType.Movies) return@coroutineScope resumeDef.await()
+
+		// Next unwatched episode of series the user already started, so a finished
+		// episode is followed by the next one even before it has been started.
+		val nextUpDef = async {
+			try {
+				val result by api.tvShowsApi.getNextUp(
+					parentId = libraryId,
+					limit = RESUME_LIMIT,
+					fields = ItemRepository.browseFields,
+					imageTypeLimit = 1,
+					enableTotalRecordCount = false,
+					enableResumable = false,
+					enableRewatching = false,
+				)
+				result.items
+			} catch (error: ApiClientException) {
+				Timber.w(error, "Failed to load next up episodes")
+				emptyList()
+			}
+		}
+
+		val resume = resumeDef.await()
+		val nextUp = nextUpDef.await()
+
+		// One entry per series; in-progress episodes take precedence.
+		val seriesWithResume = resume.mapNotNull { it.seriesId }.toSet()
+		(resume + nextUp.filter { it.seriesId == null || it.seriesId !in seriesWithResume })
+			.distinctBy { it.id }
+			.take(RESUME_LIMIT)
 	}
 
 	private data class Page(val items: List<BaseItemDto>, val total: Int)

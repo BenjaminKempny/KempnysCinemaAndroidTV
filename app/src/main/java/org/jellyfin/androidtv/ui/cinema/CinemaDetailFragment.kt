@@ -54,6 +54,7 @@ class CinemaDetailFragment : Fragment() {
 						onBack = { navigationRepository.goBack() },
 						onHome = { navigationRepository.reset(Destinations.home) },
 						onPlay = { viewModel.state.value.playTarget?.let(::play) },
+						onPlayTrailer = { viewModel.state.value.trailer?.let(::playTrailer) },
 						onPlayItem = ::play,
 						onOpenItem = ::openItem,
 						onOpenPerson = { person ->
@@ -92,6 +93,15 @@ class CinemaDetailFragment : Fragment() {
 			context = requireContext(),
 			items = listOf(item),
 			position = position,
+		)
+	}
+
+	/** Trailers always start from the beginning; back returns to this detail page. */
+	private fun playTrailer(trailer: BaseItemDto) {
+		playbackLauncher.launch(
+			context = requireContext(),
+			items = listOf(trailer),
+			position = 0,
 		)
 	}
 

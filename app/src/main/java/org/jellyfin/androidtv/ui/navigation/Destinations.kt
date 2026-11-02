@@ -16,6 +16,7 @@ import org.jellyfin.androidtv.ui.cinema.CinemaMediaType
 import org.jellyfin.androidtv.ui.cinema.CinemaSearchFragment
 import org.jellyfin.androidtv.ui.cinema.CinemaHomeFragment
 import org.jellyfin.androidtv.ui.cinema.CinemaProfileFragment
+import org.jellyfin.androidtv.ui.cinema.CinemaRecommendationFragment
 import org.jellyfin.androidtv.ui.itemdetail.FullDetailsFragment
 import org.jellyfin.androidtv.ui.itemdetail.ItemListFragment
 import org.jellyfin.androidtv.ui.itemdetail.MusicFavoritesListFragment
@@ -41,6 +42,7 @@ object Destinations {
 	fun search(query: String? = null) = fragmentDestination<CinemaSearchFragment> {
 		putString(CinemaSearchFragment.ARGUMENT_QUERY, query)
 	}
+	val movieRecommendation = fragmentDestination<CinemaRecommendationFragment>()
 
 	// Browsing
 	// TODO only pass item id instead of complete JSON to browsing destinations

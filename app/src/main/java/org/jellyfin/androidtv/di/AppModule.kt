@@ -16,6 +16,8 @@ import org.jellyfin.androidtv.auth.repository.ServerRepository
 import org.jellyfin.androidtv.auth.repository.UserRepository
 import org.jellyfin.androidtv.auth.repository.UserRepositoryImpl
 import org.jellyfin.androidtv.data.contentwarning.ContentWarningRepository
+import org.jellyfin.androidtv.data.sdns.SdnsConfig
+import org.jellyfin.androidtv.data.sdns.SdnsRepository
 import org.jellyfin.androidtv.data.eventhandling.SocketHandler
 import org.jellyfin.androidtv.data.model.DataRefreshService
 import org.jellyfin.androidtv.data.repository.CustomMessageRepository
@@ -53,6 +55,7 @@ import org.jellyfin.androidtv.ui.search.SearchRepositoryImpl
 import org.jellyfin.androidtv.ui.cinema.CinemaDetailViewModel
 import org.jellyfin.androidtv.ui.cinema.CinemaHomeViewModel
 import org.jellyfin.androidtv.ui.cinema.CinemaProfileViewModel
+import org.jellyfin.androidtv.ui.cinema.CinemaRecommendationViewModel
 import org.jellyfin.androidtv.ui.search.SearchViewModel
 import org.jellyfin.androidtv.ui.settings.compat.SettingsViewModel
 import org.jellyfin.androidtv.ui.settings.screen.library.SettingsLibrariesScreenViewModel
@@ -163,6 +166,20 @@ val appModule = module {
 	}
 	single<ExternalAppRepository> { ExternalAppRepository(get(), getAll(), get<DefaultExternalPlayerApi>()) }
 
+	// ScreenDiceNSpice (movie ratings)
+	single {
+		val userPreferences = get<UserPreferences>()
+		SdnsRepository(
+			config = {
+				SdnsConfig(
+					url = BuildConfig.SUPABASE_URL,
+					key = BuildConfig.SUPABASE_KEY,
+					profileId = userPreferences[UserPreferences.sdnsProfileId].ifBlank { BuildConfig.SDNS_PROFILE_ID },
+				)
+			},
+		)
+	}
+
 	// External player APIs
 	single { VlcExternalPlayerApi() } bind ExternalPlayerApi::class
 	single { MxExternalPlayerApi() } bind ExternalPlayerApi::class
@@ -179,6 +196,7 @@ val appModule = module {
 	viewModel { SearchViewModel(get()) }
 	viewModel { CinemaHomeViewModel(get(), get()) }
 	viewModel { CinemaDetailViewModel(get(), get()) }
+	viewModel { CinemaRecommendationViewModel(get(), get()) }
 	viewModel { CinemaProfileViewModel(get(), get(), get(), get(), get()) }
 	viewModel { DreamViewModel(get(), get(), get(), get(), get()) }
 	viewModel { SettingsViewModel() }
